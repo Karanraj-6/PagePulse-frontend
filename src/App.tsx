@@ -19,75 +19,75 @@ import './components/Prism.css';
 
 function App() {
   return (
-      <div className="relative z-10">
-        <AuthProvider>
-          <Router>
-            <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<AuthPage />} />
+    <div className="relative z-10">
+      <AuthProvider>
+        <Router>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/auth" element={<AuthPage />} />
 
-          {/* Protected Routes */}
-          <Route
-            path="/home"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/search"
-            element={
-              <ProtectedRoute>
-                <SearchPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/book/:id"
-            element={
-              <ProtectedRoute>
-                <BookDetailPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/read/:id"
-            element={
-              <ProtectedRoute>
-                <BookReaderPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chats"
-            element={
-              <ProtectedRoute>
-                <ChatsListPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chats/:username"
-            element={
-              <ProtectedRoute>
-                <ChatPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-            </Routes>
-          </Router>
-        </AuthProvider>
-      </div>
+            {/* Protected Routes */}
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <HomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/search"
+              element={
+                <ProtectedRoute>
+                  <SearchPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/books/:id/:slug"
+              element={
+                <ProtectedRoute>
+                  <BookDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/books/:id/:slug/read"
+              element={
+                <ProtectedRoute>
+                  <BookReaderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chats"
+              element={
+                <ProtectedRoute>
+                  <ChatsListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chats/:username"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Router>
+      </AuthProvider>
+    </div>
   );
 }
 
