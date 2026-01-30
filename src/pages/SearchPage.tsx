@@ -16,7 +16,7 @@ const SearchResultsBoard = ({ query, category, results, children }) => {
             paddingTop: '3rem',
             paddingBottom: '3rem',
             paddingLeft: '6rem', 
-            paddingRight: '6rem' 
+            paddingRight: '6rem',
         }}
     >
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
@@ -149,7 +149,6 @@ const SearchPage = () => {
             className="absolute inset-0 bg-cover bg-center opacity-100 blur-sm scale-105"
             style={{ backgroundImage: `url(${bgImage})` }}
          ></div>
-         <div className="absolute inset-0 bg-gradient-to-b from-[#050505] via-[#050505]/80 to-[#050505]"></div>
       </div>
 
       <Header
@@ -165,10 +164,12 @@ const SearchPage = () => {
         style={{ 
             maxWidth: '90rem', 
             margin: '0 auto', 
+            marginTop: '-6rem',
             paddingTop: '10rem', 
             paddingBottom: '5rem',
             paddingLeft: '2rem',
-            paddingRight: '2rem'
+            paddingRight: '2rem',
+            backdropBlur: '100px',
         }}
       >
         
@@ -187,7 +188,7 @@ const SearchPage = () => {
         ) : (
           
           /* GLASSY BOARD */
-          <SearchResultsBoard query={query} category={category} results={results}>
+          <SearchResultsBoard query={query} category={category} results={results} style={{ opacity: '100' }}>
             <div className="flex flex-col" style={{ gap: '2rem' }}>
               {results.map((book) => (
                 <div

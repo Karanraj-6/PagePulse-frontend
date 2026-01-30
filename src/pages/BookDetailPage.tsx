@@ -83,7 +83,6 @@ const BookDetailPage = () => {
             className="absolute inset-0 bg-cover bg-center opacity-100 blur-sm scale-105"
             style={{ backgroundImage: `url(${bgImage})` }}
          ></div>
-         <div className="absolute inset-0 bg-gradient-to-b from-[#050505] via-[#050505]/80 to-[#050505]"></div>
       </div>
 
       <Header showSearch={true} searchValue="" onSearchChange={() => {}} onSearchSubmit={() => {}} />
@@ -91,7 +90,7 @@ const BookDetailPage = () => {
       {/* Main Container */}
       <div 
         className="w-full max-w-6xl px-6 relative z-10 pb-20"
-        style={{ paddingTop: '8rem' }}
+        style={{ paddingTop: '8rem', marginTop: '-5rem', marginBottom: '3rem' }}
       >
         {/* Back Button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '2rem' }}>
@@ -163,13 +162,8 @@ const BookDetailPage = () => {
                         scaleOnHover={1.05}
                         showMobileWarning={false}
                         showTooltip={false}
-                        displayOverlayContent={true}
-                        overlayContent={
-                            <div className="p-4 bg-black/70 w-full backdrop-blur-sm rounded-br-sm">
-                                <p className="text-white font-bold text-sm line-clamp-1">{book.title}</p>
-                                <p className="text-[#d4af37] text-xs">{authorName}</p>
-                            </div>
-                        }
+                        displayOverlayContent={false}
+                        
                     />
                 </div>
 

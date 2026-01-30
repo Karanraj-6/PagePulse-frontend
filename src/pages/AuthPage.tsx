@@ -71,12 +71,12 @@ const AuthPage = () => {
         // FIXED: Inline style forces the gap you need
         style={{ padding: '60px 50px' }}
       > 
-       <h1 className="text-4xl font-bold text-white text-center mb-30 tracking-tight">
+       <h1 className="text-4xl font-bold text-white text-center mb-30 tracking-tight" style={{ marginBottom: '2rem' }}>
             {isLogin ? 'Login' : 'Sign Up'}
         </h1>
         
         {/* Tab Switcher */}
-        <div className="grid grid-cols-2 bg-black/60 p-1 mb-8 rounded-xl border border-white/5 h-14 relative">
+        <div className="grid grid-cols-2 bg-black/60 p-1 mb-8 rounded-xl border border-white/5 h-14 relative" >
              {/* Sliding Background Indicator */}
              <div 
                 className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#d4af37] rounded-lg shadow-md transition-all duration-500 ease-in-out ${
@@ -209,7 +209,7 @@ const AuthPage = () => {
                     type="submit"
                     disabled={isLoading}
                     className="w-full rounded-xl bg-[#d4af37] text-black hover:bg-[#b8960c] text-lg font-bold shadow-lg transition-all duration-300 hover:scale-[1.02]"
-                    style={{ height: '60px' }}
+                    style={{ height: '3rem', marginTop: '2rem' }}
                 >
                     {isLoading ? (
                         <div className="flex items-center gap-2">

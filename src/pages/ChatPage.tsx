@@ -118,38 +118,38 @@ const ChatPage = () => {
 
       {/* --- BACKGROUND PATTERN (Absolute, Z-0) --- */}
       <div style={{
-          position: 'absolute',
-          top: '-20%',
-          left: '-20%',
-          width: '140%',
-          height: '140%',
-          zIndex: 0,
-          pointerEvents: 'none',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          gridTemplateRows: 'repeat(2, 1fr)',
-          opacity: 0.1, 
-          transform: 'rotate(-15deg)',
-          gap: '50px'
-      }}>
-        {Array.from({ length: 9 }).map((_, index) => (
-            <div key={index} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <TextPressure
-                    text="PagePulse"
-                    flex={true}
-                    alpha={false}
-                    stroke={false}
-                    width={true}
-                    weight={true}
-                    italic={true}
-                    textColor="transparent"
-                    strokeColor="#000000"
-                    minFontSize={120}
-                    className="text-6xl font-bold bg-gradient-to-r from-[#bb750d] via-[#d45b0a] to-[#c8d50e] bg-clip-text text-transparent animate-gradient-x"
-                />
-            </div>
-        ))}
-      </div>
+                position: 'absolute',
+                top: '-20%',
+                left: '-20%',
+                width: '140%',
+                height: '140%',
+                zIndex: 0,
+                pointerEvents: 'none',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateRows: 'repeat(3, 1fr)',
+                opacity: 0.3, // Increased brightness
+                transform: 'rotate(-15deg)',
+                gap: '50px'
+            }}>
+              {Array.from({ length: 9 }).map((_, index) => (
+                  <div key={index} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                      <TextPressure
+                          text="PagePulse"
+                          flex={true}
+                          alpha={false}
+                          stroke={false}
+                          width={true}
+                          weight={true}
+                          italic={true}
+                          textColor="transparent"
+                          strokeColor="#000000"
+                          minFontSize={120}
+                          className="text-6xl font-bold bg-gradient-to-r from-[#bb750d] via-[#d45b0a] to-[#c8d50e] bg-clip-text text-transparent animate-gradient-x"
+                      />
+                  </div>
+              ))}
+    </div>
 
       {/* 2. CHAT CONTAINER (Absolute Center, Z-10) */}
       <div style={{

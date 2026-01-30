@@ -82,10 +82,9 @@ const HomePage = () => {
       {/* Background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
          <div 
-            className="absolute inset-0 bg-cover bg-center opacity-100 blur-sm scale-105"
+            className="absolute inset-0 bg-cover bg-center opacity-40 blur-sm scale-105"
             style={{ backgroundImage: 'url(/src/assets/lp.jpg)' }}
          ></div>
-         <div className="absolute inset-0 bg-gradient-to-b from-[#050505] via-[#050505]/80 to-[#050505]"></div>
       </div>
 
       <Header
@@ -103,7 +102,7 @@ const HomePage = () => {
         {/* ================= TRENDING SECTION ================= */}
         <section 
             className="w-full max-w-[1800px] mx-auto"
-            style={{ marginBottom: '1rem', marginRight: '2rem',marginLeft: '2rem' }}
+            style={{ marginTop: '-7rem', marginBottom: '1rem', marginRight: '2rem',marginLeft: '2rem' }}
         >
              {/* Header Title */}
              <div 
