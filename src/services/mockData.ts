@@ -207,3 +207,41 @@ export const categories = [
   'Horror',
   'Biography',
 ];
+
+export const mockNotifications = [
+  {
+    id: '1',
+    title: 'New Book Arrival',
+    message: 'The latest edition of "The Great Gatsby" is now available.',
+    time: '2 hours ago',
+    read: false,
+  },
+  {
+    id: '2',
+    title: 'Friend Request',
+    message: 'John Doe sent you a friend request.',
+    time: '5 hours ago',
+    read: true,
+  },
+  {
+    id: '3',
+    title: 'Reading Session Invite',
+    message: 'Alice invited you to join "Fantasy Book Club".',
+    time: '1 day ago',
+    read: false,
+  },
+  {
+    id: '4',
+    title: 'System Update',
+    message: 'PagePulse will be undergoing maintenance tonight.',
+    time: '2 days ago',
+    read: true,
+  },
+  {
+    id: '5',
+    title: 'New Comment',
+    message: 'Sarah commented on your review of "Dune".',
+    time: '3 days ago',
+    read: true,
+  },
+];

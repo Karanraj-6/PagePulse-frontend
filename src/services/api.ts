@@ -1,4 +1,5 @@
 // API service layer - Ready to connect to backend
+import { mockNotifications } from './mockData';
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 interface ApiOptions {
@@ -124,6 +125,11 @@ export const userApi = {
     apiRequest<User[]>(`/users/search?q=${encodeURIComponent(query)}`),
 };
 
+// Notification API
+export const notificationApi = {
+  getUpdates: () => Promise.resolve(mockNotifications),
+};
+
 // Types
 export interface User {
   id: string;
@@ -186,10 +192,19 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+}
+
 export default {
   auth: authApi,
   books: booksApi,
   chat: chatApi,
   reading: readingApi,
   user: userApi,
+  notifications: notificationApi,
 };

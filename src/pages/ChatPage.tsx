@@ -254,7 +254,7 @@ const ChatPage = () => {
                         width: '40px', height: '40px', borderRadius: '50%',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                        backgroundColor: isMenuOpen ? '#d4af37' : 'transparent',
+                        backgroundColor: isMenuOpen ? '#e0bb3fff' : 'transparent',
                         color: isMenuOpen ? 'black' : '#a1a1aa'
                     }}
                 >
@@ -323,7 +323,7 @@ const ChatPage = () => {
                             borderTopRightRadius: isMe ? '4px' : '20px',
                             borderTopLeftRadius: isMe ? '20px' : '4px',
                             // Updated background for "Me" messages: Transparent Gold + Blur
-                            background: isMe ? 'rgba(212, 175, 55, 0.65)' : 'rgba(24, 24, 27, 0.9)', 
+                            background: isMe ? 'rgba(235, 192, 51, 0.85)' : 'rgba(24, 24, 27, 0.9)', 
                             backdropFilter: 'blur(8px)',
                             color: isMe ? 'black' : '#e4e4e7',
                             border: isMe ? '1px solid rgba(212, 175, 55, 0.2)' : '1px solid rgba(255,255,255,0.05)'
