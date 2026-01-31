@@ -1,17 +1,44 @@
-// API service layer - Ready to connect to backend
-import { mockNotifications } from './mockData';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// API service layer - Connected to Microservices
+
+const mockNotifications: Notification[] = [
+  { id: '1', title: 'New Book Arrival', message: 'The latest edition of "The Great Gatsby" is now available.', time: '2 hours ago', read: false },
+  { id: '2', title: 'Friend Request', message: 'John Doe sent you a friend request.', time: '5 hours ago', read: true },
+];
+
+const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3001';
+const BOOK_URL = import.meta.env.VITE_BOOK_URL || 'http://localhost:3002';
+const CHAT_URL = import.meta.env.VITE_CHAT_URL || 'http://localhost:3003';
+
+// Cookie Helpers - Use 'token' to match backend
+export const getAuthToken = (): string | null => {
+  const match = document.cookie.match(new RegExp('(^| )token=([^;]+)'));
+  return match ? match[2] : null;
+};
+
+export const setAuthToken = (token: string) => {
+  document.cookie = `token=${token}; path=/; max-age=3600; SameSite=lax`;
+};
+
+export const clearAuthToken = () => {
+  document.cookie = 'token=; path=/; max-age=0';
+};
 
 interface ApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   body?: unknown;
   headers?: Record<string, string>;
+  baseUrl?: string;
+  params?: Record<string, string | number | undefined>;
 }
 
 async function apiRequest<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = 'GET', body, headers = {} } = options;
+  const { method = 'GET', body, headers = {}, baseUrl, params } = options;
 
-  const token = localStorage.getItem('authToken');
+  if (!baseUrl) {
+    throw new Error('Base URL is required for API requests');
+  }
+
+  const token = getAuthToken();
 
   const config: RequestInit = {
     method,
@@ -20,112 +47,174 @@ async function apiRequest<T>(endpoint: string, options: ApiOptions = {}): Promis
       ...(token && { Authorization: `Bearer ${token}` }),
       ...headers,
     },
+    credentials: 'include',
   };
 
   if (body) {
     config.body = JSON.stringify(body);
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+  let url = `${baseUrl}${endpoint}`;
+  if (params) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+    const queryString = searchParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+
+  const response = await fetch(url, config);
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: 'An error occurred' }));
-    throw new Error(error.message || 'API request failed');
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || error.error || 'API request failed');
   }
 
   return response.json();
 }
 
-// Auth API
+// Helper to make requests to specific services
+const authRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
+  apiRequest<T>(endpoint, { ...options, baseUrl: AUTH_URL });
+
+const bookRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
+  apiRequest<T>(endpoint, { ...options, baseUrl: BOOK_URL });
+
+const chatRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
+  apiRequest<T>(endpoint, { ...options, baseUrl: CHAT_URL });
+
+// Auth Service
 export const authApi = {
-  login: (email: string, password: string) =>
-    apiRequest<{ token: string; user: User }>('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    }),
-
-  signup: (data: SignupData) =>
-    apiRequest<{ token: string; user: User }>('/auth/signup', {
-      method: 'POST',
-      body: data,
-    }),
-
-  logout: () => {
-    localStorage.removeItem('authToken');
+  register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/auth/register', { method: 'POST', body: data }),
+  
+  login: async (email: string, password: string) => {
+    // Backend returns: { token, user: { id, name, email, avatar } }
+    const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/auth/login', { 
+      method: 'POST', 
+      body: { username: email, password } 
+    });
+    
+    if (response.token) {
+      setAuthToken(response.token);
+    }
+    
+    // Transform to match User interface
+    const user: User = {
+      id: response.user.id,
+      username: response.user.name,
+      email: response.user.email,
+      avatar: response.user.avatar || undefined,
+    };
+    
+    return { user, token: response.token };
   },
 
-  getCurrentUser: () => apiRequest<User>('/auth/me'),
+  // Backend returns: { id, username, email, avatar }
+  getCurrentUser: () => authRequest<User>('/auth/me'),
+  
+  logout: () => {
+    clearAuthToken();
+  },
+
+  // User & Social Endpoints
+  searchUsers: (query: string) =>
+    authRequest<User[]>('/users', {
+      params: { q: query },
+    }),
+
+  getFriends: (userId: string) =>
+    authRequest<Friend[]>('/friends', {
+      params: { userId },
+    }),
+
+  manageFriendship: (myId: string, targetId: string, action: 'add' | 'block') =>
+    authRequest<void>('/friends', {
+      method: 'POST',
+      body: { myId, targetId, action },
+    }),
+
+  acceptFriendRequest: (myId: string, targetId: string) =>
+    authRequest<void>('/friends', {
+      method: 'PUT',
+      body: { myId, targetId },
+    }),
 };
 
-// Books API
+// Book Service
 export const booksApi = {
-  getTrending: () => apiRequest<Book[]>('/books/trending'),
+  getBooks: (page: number = 1, category?: string, search?: string) =>
+    bookRequest<Book[]>('/books', {
+      params: { page, category, search },
+    }),
 
-  getByCategory: (category: string) =>
-    apiRequest<Book[]>(`/books/category/${category}`),
+  getTrending: () => bookRequest<Book[]>('/books/trending'),
 
-  search: (query: string) =>
-    apiRequest<Book[]>(`/books/search?q=${encodeURIComponent(query)}`),
+  getById: (id: string) => bookRequest<Book>(`/books/${id}`),
 
-  getById: (id: string) => apiRequest<Book>(`/books/${id}`),
+  getPages: (id: string) =>
+    bookRequest<BookPagesResponse>(`/books/${id}/pages`),
 
-  getContent: (id: string, page: number) =>
-    apiRequest<BookContent>(`/books/${id}/content?page=${page}`),
+  getCategories: () => bookRequest<string[]>('/categories'),
 };
 
-// Chat API
+// Chat Service
 export const chatApi = {
-  getConversations: () => apiRequest<Conversation[]>('/chats'),
-
-  getMessages: (conversationId: string) =>
-    apiRequest<Message[]>(`/chats/${conversationId}/messages`),
-
-  sendMessage: (conversationId: string, content: string) =>
-    apiRequest<Message>(`/chats/${conversationId}/messages`, {
+  initiatePrivateChat: (myId: string, targetUserId: string) =>
+    chatRequest<{ conversationId: string; created: boolean }>('/private', {
       method: 'POST',
-      body: { content },
+      body: { myId, targetUserId },
     }),
 
-  createConversation: (userId: string) =>
-    apiRequest<Conversation>('/chats', {
+  initiateReadingSession: (myId: string, bookId: string, friendUsername?: string) =>
+    chatRequest<{ conversationId: string }>('/reading', {
       method: 'POST',
-      body: { userId },
-    }),
-};
-
-// Reading Session API
-export const readingApi = {
-  inviteFriend: (bookId: string, friendId: string) =>
-    apiRequest<ReadingSession>('/reading/invite', {
-      method: 'POST',
-      body: { bookId, friendId },
+      body: { myId, bookId, friendUsername },
     }),
 
-  addComment: (sessionId: string, page: number, comment: string) =>
-    apiRequest<Comment>(`/reading/${sessionId}/comments`, {
-      method: 'POST',
-      body: { page, comment },
-    }),
-
-  getComments: (sessionId: string, page: number) =>
-    apiRequest<Comment[]>(`/reading/${sessionId}/comments?page=${page}`),
+  getConversations: () => chatRequest<Conversation[]>('/chats'),
+  getMessages: (conversationId: string) => chatRequest<Message[]>(`/chats/${conversationId}/messages`),
 };
 
 // User API
 export const userApi = {
-  getProfile: (userId: string) => apiRequest<User>(`/users/${userId}`),
+  getProfile: (userId: string) => authRequest<User>(`/users/${userId}`),
+  
+  updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
+  
+  // Upload avatar with file
+  uploadAvatar: async (file: File): Promise<{ success: boolean; avatarUrl: string }> => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
 
-  updateProfile: (data: Partial<User>) =>
-    apiRequest<User>('/users/profile', {
-      method: 'PUT',
-      body: data,
-    }),
+    const formData = new FormData();
+    formData.append('avatar', file);
 
-  searchUsers: (query: string) =>
-    apiRequest<User[]>(`/users/search?q=${encodeURIComponent(query)}`),
+    const response = await fetch(`${AUTH_URL}/users/avatar`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || error.error || 'Avatar upload failed');
+    }
+
+    return response.json();
+  },
 };
 
-// Notification API
+// Notification API (Mock)
 export const notificationApi = {
   getUpdates: () => Promise.resolve(mockNotifications),
 };
@@ -134,9 +223,14 @@ export const notificationApi = {
 export interface User {
   id: string;
   username: string;
-  email: string;
+  email?: string;
   avatar?: string;
-  createdAt: string;
+}
+
+export interface Friend {
+  user_id: string;
+  username: string;
+  status: 'accepted' | 'pending' | 'blocked';
 }
 
 export interface SignupData {
@@ -145,51 +239,53 @@ export interface SignupData {
   password: string;
 }
 
-export interface Book {
-  id: string;
-  title: string;
-  author: string;
-  coverImage: string;
-  description: string;
-  category: string;
-  rating: number;
-  totalPages: number;
+export interface Author {
+  name: string;
+  birth_year?: number;
+  death_year?: number;
 }
 
-export interface BookContent {
+export interface Book {
+  id: number;
+  title: string;
+  authors: Author[];
+  subjects: string[];
+  bookshelves: string[];
+  languages: string[];
+  copyright: boolean;
+  media_type: string;
+  formats: Record<string, string>;
+  download_count: number;
+}
+
+export interface BookPage {
   page: number;
-  content: string;
-  totalPages: number;
+  html: string;
+}
+
+export interface BookPagesResponse {
+  book_id: number;
+  title: string;
+  total_pages: number;
+  pages: BookPage[];
 }
 
 export interface Conversation {
   id: string;
-  participant: User;
+  conversation_id?: string;
+  participant?: User;
   lastMessage?: Message;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export interface Message {
   id: string;
+  message_id?: string;
   content: string;
   senderId: string;
+  sender_id?: string;
   createdAt: string;
-}
-
-export interface ReadingSession {
-  id: string;
-  bookId: string;
-  participants: User[];
-  currentPage: number;
-}
-
-export interface Comment {
-  id: string;
-  userId: string;
-  username: string;
-  content: string;
-  page: number;
-  createdAt: string;
+  sent_at?: string;
 }
 
 export interface Notification {
@@ -204,7 +300,6 @@ export default {
   auth: authApi,
   books: booksApi,
   chat: chatApi,
-  reading: readingApi,
   user: userApi,
   notifications: notificationApi,
 };

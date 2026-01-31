@@ -65,12 +65,21 @@ const AuthPage = () => {
         </div>
       </button>
 
+      
+
       {/* ================= MAIN CARD ================= */}
       <div 
         className="relative z-10 w-full max-w-lg bg-[#0f0f0f]/95 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl transition-all duration-500 ease-in-out"
         // FIXED: Inline style forces the gap you need
         style={{ padding: '60px 50px' }}
       > 
+      {/* Error Message */}
+        {error && (
+            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm font-medium text-center animate-pulse" style={{ marginBottom: '1rem', marginTop: '1rem' }}>
+                {error}
+            </div>
+        )}
+
        <h1 className="text-4xl font-bold text-white text-center mb-30 tracking-tight" style={{ marginBottom: '2rem' }}>
             {isLogin ? 'Login' : 'Sign Up'}
         </h1>
@@ -102,12 +111,7 @@ const AuthPage = () => {
             </button>
         </div>
 
-        {/* Error Message */}
-        {error && (
-            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm font-medium text-center animate-pulse">
-                {error}
-            </div>
-        )}
+        
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">

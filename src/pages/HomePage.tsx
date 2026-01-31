@@ -1,49 +1,88 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ShoppingBag, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingBag, Flame, Download, Star } from 'lucide-react';
 import Header from '../components/Header';
-import { mockBooks } from '../services/mockData';
-
-const FEATURED_CATEGORIES = [
-    "Romance", "Fantasy", "Self-Help", "Crime",
-    "Sci-Fi", "Manga", "Thriller", "History",
-    "Business", "Horror", "Mystery", "Biography"
-];
+import { booksApi, type Book } from '../services/api';
 
 const HomePage = () => {
     const navigate = useNavigate();
     const [searchValue, setSearchValue] = useState('');
-    const [activeIndex, setActiveIndex] = useState(3);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [categories, setCategories] = useState<string[]>([]);
+    const [trendingBooks, setTrendingBooks] = useState<Book[]>([]);
+    const [categoryBooks, setCategoryBooks] = useState<Book[]>([]);
 
-    const categoryScrollRef = useRef(null);
+    const categoryScrollRef = useRef<HTMLDivElement>(null);
     const isScrolling = useRef(false);
 
     // --- DATA ---
-    const selectedCategory = FEATURED_CATEGORIES[activeIndex];
+    // Safely access category or fallback
+    const selectedCategory = categories.length > 0 ? categories[activeIndex] : '';
 
-    const categoryBooks = mockBooks.filter(
-        (b) => b.category === selectedCategory || b.category === 'Trending'
-    );
+    // --- FETCH DATA ---
+    useEffect(() => {
+        // 1. Fetch Categories
+        const fetchCategories = async () => {
+            try {
+                const cats = await booksApi.getCategories();
+                if (cats && Array.isArray(cats) && cats.length > 0) {
+                    setCategories(cats);
+                    // Center the wheel if possible, or start at 0
+                    setActiveIndex(Math.floor(cats.length / 2));
+                }
+            } catch (err) {
+                console.error("Failed to fetch categories", err);
+            }
+        };
 
-    const trendingBooks = mockBooks.filter(b => b.category === 'Trending' || b.rating > 4.5);
+        // 2. Fetch Trending
+        const fetchTrending = async () => {
+            try {
+                const data = await booksApi.getTrending();
+                setTrendingBooks(data || []);
+            } catch (error) {
+                console.error("Failed to fetch trending:", error);
+            }
+        };
+
+        fetchCategories();
+        fetchTrending();
+    }, []);
+
+    // 3. Fetch Category Books
+    useEffect(() => {
+        if (!selectedCategory) return;
+
+        const fetchCategoryBooks = async () => {
+            try {
+                const data = await booksApi.getBooks(1, selectedCategory);
+                setCategoryBooks(data || []);
+            } catch (error) {
+                console.error(`Failed to fetch books for ${selectedCategory}:`, error);
+                setCategoryBooks([]);
+            }
+        };
+        fetchCategoryBooks();
+    }, [selectedCategory]);
 
     // --- SCROLL LOGIC ---
     useEffect(() => {
         const element = categoryScrollRef.current;
-        if (!element) return;
+        if (!element || categories.length === 0) return;
 
-        const handleWheel = (e) => {
-            // Only prevent page scroll if hovering strictly inside the Left Panel
-            if (element.contains(e.target)) {
+        const handleWheel = (e: WheelEvent) => {
+            if (element.contains(e.target as Node)) {
                 e.preventDefault();
-
                 if (isScrolling.current) return;
                 isScrolling.current = true;
 
+                const len = categories.length;
+                if (len === 0) return;
+
                 if (e.deltaY > 0) {
-                    setActiveIndex((prev) => (prev + 1) % FEATURED_CATEGORIES.length);
+                    setActiveIndex((prev) => (prev + 1) % len);
                 } else {
-                    setActiveIndex((prev) => (prev - 1 + FEATURED_CATEGORIES.length) % FEATURED_CATEGORIES.length);
+                    setActiveIndex((prev) => (prev - 1 + len) % len);
                 }
 
                 setTimeout(() => {
@@ -51,28 +90,14 @@ const HomePage = () => {
                 }, 300);
             }
         };
-
         element.addEventListener('wheel', handleWheel, { passive: false });
-
-        return () => {
-            if (element) element.removeEventListener('wheel', handleWheel);
-        };
-    }, []);
+        return () => element.removeEventListener('wheel', handleWheel);
+    }, [categories]); // Re-bind if categories change
 
     const handleSearchSubmit = () => {
         if (searchValue.trim()) {
             navigate(`/search?q=${encodeURIComponent(searchValue)}`);
         }
-    };
-
-    const slugify = (text) => {
-        return text
-            .toString()
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, '-')
-            .replace(/[^\w-]+/g, '')
-            .replace(/--+/g, '-');
     };
 
     return (
@@ -140,11 +165,13 @@ const HomePage = () => {
                             className="flex gap-6 overflow-x-auto pb-20 snap-x hide-scrollbar"
                             style={{ scrollBehavior: 'smooth', minHeight: '550px' }}
                         >
-                            {trendingBooks.map((book) => (
-                                <div key={`trending-${book.id}`} className="min-w-[300px] snap-start">
+                            {trendingBooks.length > 0 ? trendingBooks.map((book) => (
+                                <div key={`trending-${book.id}`} className="w-[300px] shrink-0 snap-start">
                                     <BookCard book={book} />
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="text-zinc-500 py-10 w-full text-center">Loading trending books...</div>
+                            )}
                         </div>
                     </div>
                 </section>
@@ -168,9 +195,9 @@ const HomePage = () => {
                         </p>
 
                         <div className="flex flex-col gap-4 lg:gap-6">
-                            {[-2, -1, 0, 1, 2].map((offset) => {
-                                const index = (activeIndex + offset + FEATURED_CATEGORIES.length) % FEATURED_CATEGORIES.length;
-                                const catName = FEATURED_CATEGORIES[index];
+                            {categories.length > 0 ? [-2, -1, 0, 1, 2].map((offset) => {
+                                const index = (activeIndex + offset + categories.length) % categories.length;
+                                const catName = categories[index];
                                 const isActive = offset === 0;
                                 const isNear = Math.abs(offset) === 1;
 
@@ -191,7 +218,9 @@ const HomePage = () => {
                                         {catName}
                                     </h2>
                                 );
-                            })}
+                            }) : (
+                                <div className="text-zinc-500 text-2xl">Loading Categories...</div>
+                            )}
                         </div>
 
                     </div>
@@ -227,7 +256,7 @@ const HomePage = () => {
                                 style={{ minHeight: '550px' }}
                             >
                                 {categoryBooks.length > 0 ? categoryBooks.map((book) => (
-                                    <div key={book.id} className="min-w-[300px] snap-start">
+                                    <div key={book.id} className="w-[300px] shrink-0 snap-start">
                                         <BookCard book={book} />
                                     </div>
                                 )) : (
@@ -248,9 +277,9 @@ const HomePage = () => {
 };
 
 // Book Card
-const BookCard = ({ book }) => {
+const BookCard = ({ book }: { book: Book }) => {
     const navigate = useNavigate();
-    const slugify = (text) => {
+    const slugify = (text: string | number) => {
         return text
             .toString()
             .toLowerCase()
@@ -260,32 +289,50 @@ const BookCard = ({ book }) => {
             .replace(/--+/g, '-');
     };
 
+    const coverImage = book.formats?.['image/jpeg'] || book.coverImage || "https://placehold.co/300x450?text=No+Cover";
+    const authorName = book.authors?.map(a => a.name).join(', ') || 'Unknown Author';
+
     return (
         <div
             onClick={() => navigate(`/books/${book.id}/${slugify(book.title)}`)}
             className="group relative h-[450px] w-full bg-[#111]/90 border border-white/5 rounded-2xl overflow-hidden hover:border-[#d4af37]/40 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,1)] flex flex-col backdrop-blur-sm cursor-pointer">
             <div className="relative flex-1 overflow-hidden">
                 <img
-                    src={book.cover}
+                    src={coverImage}
                     alt={book.title}
                     className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105 group-hover:brightness-110"
                 />
-                <div className="absolute top-3 right-3 bg-white/10 backdrop-blur-md border border-white/10 text-white text-[10px] font-bold px-3 py-1.5 rounded-full">
-                    -15%
-                </div>
             </div>
-            <div className="p-5 h-[140px] flex flex-col justify-between bg-transparent">
+            <div className="p-5 h-[140px] flex flex-col justify-between bg-transparent" style={{ margin: '0.5rem' }}>
                 <div>
                     <h3 className="text-white font-bold text-lg leading-tight line-clamp-1 mb-1 group-hover:text-[#d4af37] transition-colors">
                         {book.title}
                     </h3>
-                    <p className="text-zinc-500 text-xs">{book.author}</p>
+                    <p className="text-zinc-500 text-xs">{authorName}</p>
                 </div>
-                <div className="flex items-center justify-between mt-auto">
-                    <span className="text-white font-bold text-lg">$14.99</span>
-                    <button className="w-10 h-10 rounded-full bg-white/5 hover:bg-[#d4af37] hover:text-black flex items-center justify-center transition-all duration-300 transform group-hover:rotate-12">
-                        <ShoppingBag className="w-4 h-4" />
+                <div className="flex items-center justify-between mt-auto" style={{ margin: '1rem' }}>
+                    <button
+                        className="
+                            bg-gradient-to-r
+                            from-[#bb750d]
+                            via-[#d45b0a]
+                            to-[#c8d50e]
+                            animate-gradient-x
+
+                            text-black
+                            font-medium
+
+                            flex
+                            items-center
+                            justify-center
+                            rounded-sm
+                        "
+                        style={{ padding: '0.1rem 0.2rem' }}
+                    >
+                        Details
                     </button>
+
+                    <span className="text-white font-bold text-lg"><Download className="w-5 h-5 text-[#d4af37]" />{book.download_count}</span>
                 </div>
             </div>
         </div>

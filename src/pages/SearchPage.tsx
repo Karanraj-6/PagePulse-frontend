@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { Download, Languages, BookOpen, ChevronRight, Headphones } from 'lucide-react';
+import { Download, Languages, BookOpen, ChevronRight } from 'lucide-react';
 
 // FIX: Import the background image so Vite/Webpack processes it correctly
 import bgImage from '../assets/lp.jpg';
 
 // --- GLASSY RESULTS BOARD COMPONENT ---
-const SearchResultsBoard = ({ query, category, results, children }) => {
+interface SearchResultsBoardProps {
+  query?: string;
+  category?: string;
+  results: any[]; // Using any[] temporarily or Book[] if imports allow, verifying imports below
+  children?: React.ReactNode;
+  style?: React.CSSProperties; // Added to fix style prop error seen in logs
+}
+
+const SearchResultsBoard = ({ query, category, results, children, style }: SearchResultsBoardProps) => {
   return (
     <div
       className="w-full bg-[#0a0a0a]/60 backdrop-blur-2xl border border-white/10 shadow-2xl relative overflow-hidden"
@@ -17,6 +25,7 @@ const SearchResultsBoard = ({ query, category, results, children }) => {
         paddingBottom: '3rem',
         paddingLeft: '6rem',
         paddingRight: '6rem',
+        ...style
       }}
     >
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
@@ -45,66 +54,7 @@ const SearchResultsBoard = ({ query, category, results, children }) => {
 };
 
 // --- DUMMY DATA ---
-const MOCK_API_RESPONSE = {
-  "count": 8,
-  "results": [
-    {
-      "id": 84,
-      "title": "Frankenstein; Or, The Modern Prometheus",
-      "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-      "summaries": ["\"Frankenstein; Or, The Modern Prometheus\" by Mary Wollstonecraft Shelley is a Gothic novel published in 1818. It tells the story of Victor Frankenstein, a young scientist who creates a living creature from assembled body parts..."],
-      "bookshelves": ["Gothic Fiction", "Movie Books"],
-      "languages": ["en"],
-      "media_type": "Text",
-      "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/84/pg84.cover.medium.jpg" },
-      "download_count": 171806
-    },
-    {
-      "id": 41445,
-      "title": "Frankenstein; Or, The Modern Prometheus",
-      "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-      "summaries": ["A novel written in the early 19th century revolving around Victor Frankenstein..."],
-      "bookshelves": ["Precursors of Science Fiction"],
-      "languages": ["en"],
-      "media_type": "Text",
-      "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/41445/pg41445.cover.medium.jpg" },
-      "download_count": 19327
-    },
-    {
-      "id": 20038,
-      "title": "Frankenstein (Audio)",
-      "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-      "summaries": [],
-      "bookshelves": ["Audio Books"],
-      "languages": ["en"],
-      "media_type": "Sound",
-      "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/20038/pg20038.cover.medium.jpg" },
-      "download_count": 1612
-    },
-    {
-      "id": 62404,
-      "title": "Frankenstein, ou le Prométhée moderne Volume 1",
-      "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-      "summaries": ["A young Swiss scientist creates a living being from dead body parts..."],
-      "bookshelves": ["FR Science fiction"],
-      "languages": ["fr"],
-      "media_type": "Text",
-      "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/62404/pg62404.cover.medium.jpg" },
-      "download_count": 465
-    },
-    {
-      "id": 42324,
-      "title": "Frankenstein; Or, The Modern Prometheus",
-      "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-      "summaries": ["The story centers around Victor Frankenstein, a brilliant but obsessive scientist..."],
-      "bookshelves": ["Science Fiction by Women"],
-      "languages": ["en"],
-      "media_type": "Text",
-      "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/42324/pg42324.cover.medium.jpg" },
-      "download_count": 14007
-    },
-  ]
-};
+import { booksApi, type Book } from '../services/api';
 
 const SearchPage = () => {
   const [searchParams] = useSearchParams();
@@ -113,28 +63,36 @@ const SearchPage = () => {
   const category = searchParams.get('category') || '';
 
   const [searchValue, setSearchValue] = useState(query || category);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const formatAuthor = (name) => {
-    if (!name) return 'Unknown Author';
-    return name.includes(',') ? name.split(',').reverse().join(' ').trim() : name;
-  };
 
-  const formatCategory = (arr) => {
-    if (!arr || arr.length === 0) return 'General';
-    return arr[0].replace('Category: ', '');
-  };
 
+  // --- DATA FETCHING ---
   useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setResults(MOCK_API_RESPONSE.results);
-      setIsLoading(false);
-    }, 500);
+    const fetchResults = async () => {
+      setIsLoading(true);
+      try {
+        // Prepare params
+        // API signature: getBooks(page, category, search)
+        // If query exists, treat as search. If category exists (and no query), filter by category.
+        const search = query || undefined;
+        const cat = category || undefined;
+
+        const data = await booksApi.getBooks(1, cat, search);
+        setResults(data || []);
+      } catch (error) {
+        console.error("Search failed:", error);
+        setResults([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchResults();
   }, [query, category]);
 
-  const slugify = (text) => {
+  const slugify = (text: string | number) => {
     return text
       .toString()
       .toLowerCase()
@@ -179,7 +137,7 @@ const SearchPage = () => {
           paddingBottom: '5rem',
           paddingLeft: '2rem',
           paddingRight: '2rem',
-          backdropBlur: '100px',
+          backdropFilter: 'blur(100px)',
         }}
       >
 
@@ -217,7 +175,7 @@ const SearchPage = () => {
                     className="shrink-0 rounded-xl overflow-hidden shadow-2xl group-hover:shadow-[#d4af37]/20 transition-all bg-zinc-900"
                     style={{ width: '160px', height: '240px' }}
                   >
-                    {book.formats['image/jpeg'] ? (
+                    {book.formats?.['image/jpeg'] ? (
                       <img
                         src={book.formats['image/jpeg']}
                         alt={book.title}
@@ -236,7 +194,7 @@ const SearchPage = () => {
                     {/* Category & Arrow */}
                     <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
                       <span className="text-xs font-bold text-[#d4af37] uppercase tracking-widest bg-[#d4af37]/10 px-3 py-1 rounded-lg border border-[#d4af37]/20">
-                        {formatCategory(book.bookshelves)}
+                        {book.subjects?.[0] || 'General'}
                       </span>
                       <div className="hidden md:block p-2 rounded-full bg-white/5 group-hover:bg-[#d4af37] group-hover:text-black transition-all">
                         <ChevronRight className="w-5 h-5" />
@@ -250,13 +208,18 @@ const SearchPage = () => {
                       </h3>
                       <p className="text-xl text-zinc-400 font-light mb-4">
                         by <span className="text-white font-medium">
-                          {book.authors.map(a => formatAuthor(a.name)).join(', ')}
+                          {book.authors?.map(a => a.name).join(', ') || 'Unknown Author'}
                         </span>
                       </p>
+                      {/* Description not in schema, using subjects as fallback or removing if not in Book interface?
+                          Schema says 'subjects', 'bookshelves', but NO 'description'.
+                          Users schema: "See schema above".
+                          Schema for `books`: id, title, authors, formats, subjects, bookshelves, languages, copyright, media_type, download_count.
+                          NO description.
+                          So I should handle lack of description.
+                      */}
                       <p className="text-lg text-zinc-500 line-clamp-2 leading-relaxed">
-                        {book.summaries && book.summaries.length > 0
-                          ? book.summaries[0]
-                          : "No summary available for this title."}
+                        {book.subjects?.join(', ') || "No description available."}
                       </p>
                     </div>
 
@@ -269,21 +232,14 @@ const SearchPage = () => {
                       {/* Downloads */}
                       <div className="flex items-center gap-2 text-zinc-400">
                         <Download className="w-5 h-5 text-[#d4af37]" />
-                        <span className="text-xl font-bold text-white">{book.download_count.toLocaleString()}</span>
+                        <span className="text-xl font-bold text-white">{(book.download_count || 0).toLocaleString()}</span>
                         <span className="text-xs uppercase tracking-wide font-medium">Downloads</span>
                       </div>
 
-                      {/* Media Type */}
-                      <div className="flex items-center gap-2 text-zinc-400">
-                        {book.media_type === 'Sound' ? <Headphones className="w-5 h-5" /> : <BookOpen className="w-5 h-5" />}
-                        <span className="text-xl font-bold text-white">{book.media_type === 'Sound' ? 'Audio' : 'Book'}</span>
-                        <span className="text-xs uppercase tracking-wide font-medium">Type</span>
-                      </div>
-
-                      {/* Language */}
+                      {/* Language - Hardcoded to EN if missing as mostly Gutendex is EN or we lack field */}
                       <div className="flex items-center gap-2 text-zinc-400">
                         <Languages className="w-5 h-5" />
-                        <span className="text-xl font-bold text-white uppercase">{book.languages[0]}</span>
+                        <span className="text-xl font-bold text-white uppercase">EN</span>
                         <span className="text-xs uppercase tracking-wide font-medium">Language</span>
                       </div>
                     </div>

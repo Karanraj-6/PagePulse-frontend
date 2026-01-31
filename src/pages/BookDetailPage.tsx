@@ -1,50 +1,23 @@
 import { useState, useEffect } from 'react';
+import { booksApi, type Book } from '../services/api';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Star, Clock, BookOpen, Heart, Share2, Download, Languages, ChevronRight, Headphones } from 'lucide-react';
+import { ArrowLeft, Star, Clock, BookOpen, Heart, Share2, Download, Languages, Headphones, FileText } from 'lucide-react';
 import Header from '../components/Header';
 import TiltedCard from '../components/TiltedCard';
 import bgImage from '../assets/lp.jpg';
 
-// --- SHARED DUMMY DATA ---
-const LOCAL_MOCK_DATA = [
-    {
-        "id": 84,
-        "title": "Frankenstein; Or, The Modern Prometheus",
-        "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-        "summaries": ["\"Frankenstein; Or, The Modern Prometheus\" by Mary Wollstonecraft Shelley is a Gothic novel published in 1818. It tells the story of Victor Frankenstein, a young scientist who creates a living creature from assembled body parts in an unorthodox experiment. When the creature awakens, Victor flees in horror, abandoning his creation. The conscious being must navigate a world that fears him, learning language and seeking connection, only to face repeated rejection. Embittered and alone, the creature confronts his creator with a desperate request that will set both on a dark path of vengeance and tragedy."],
-        "bookshelves": ["Gothic Fiction", "Movie Books"],
-        "languages": ["en"],
-        "media_type": "Text",
-        "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/84/pg84.cover.medium.jpg" },
-        "download_count": 171806
-    },
-    {
-        "id": 41445,
-        "title": "Frankenstein; Or, The Modern Prometheus",
-        "authors": [{ "name": "Shelley, Mary Wollstonecraft", "birth_year": 1797, "death_year": 1851 }],
-        "summaries": ["A novel written in the early 19th century revolving around Victor Frankenstein..."],
-        "bookshelves": ["Precursors of Science Fiction"],
-        "languages": ["en"],
-        "media_type": "Text",
-        "formats": { "image/jpeg": "https://www.gutenberg.org/cache/epub/41445/pg41445.cover.medium.jpg" },
-        "download_count": 19327
-    }
-];
+
 
 const BookDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [book, setBook] = useState(null);
+    const [book, setBook] = useState<Book | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isFavorite, setIsFavorite] = useState(false);
     const [isBackHovered, setIsBackHovered] = useState(false);
     const [searchValue, setSearchValue] = useState("");
-    const formatAuthor = (name) => {
-        if (!name) return 'Unknown Author';
-        return name.includes(',') ? name.split(',').reverse().join(' ').trim() : name;
-    };
 
-    const slugify = (text) => {
+    const slugify = (text: string) => {
         return text
             .toString()
             .toLowerCase()
@@ -54,7 +27,7 @@ const BookDetailPage = () => {
             .replace(/--+/g, '-');
     };
 
-    const handleSearchSubmit = (val) => {
+    const handleSearchSubmit = (val: string) => {
         const term = val || searchValue; // Use passed value or state
         if (term.trim()) {
             navigate(`/search?q=${encodeURIComponent(term)}`);
@@ -62,12 +35,21 @@ const BookDetailPage = () => {
     };
 
     useEffect(() => {
-        setIsLoading(true);
-        setTimeout(() => {
-            const foundBook = LOCAL_MOCK_DATA.find((b) => String(b.id) === String(id));
-            setBook(foundBook || null);
-            setIsLoading(false);
-        }, 300);
+        const fetchBook = async () => {
+            if (!id) return;
+            setIsLoading(true);
+            try {
+                const data = await booksApi.getById(id);
+                setBook(data);
+            } catch (err) {
+                console.error("Failed to fetch book:", err);
+                setBook(null); // Or set error state
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchBook();
     }, [id]);
 
     if (isLoading) {
@@ -87,11 +69,13 @@ const BookDetailPage = () => {
         );
     }
 
-    const coverImage = book.formats && book.formats['image/jpeg'];
-    const authorName = book.authors && book.authors.length > 0 ? formatAuthor(book.authors[0].name) : 'Unknown Author';
-    const category = book.bookshelves && book.bookshelves.length > 0 ? book.bookshelves[0].replace('Category: ', '') : 'General';
-    const description = book.summaries && book.summaries.length > 0 ? book.summaries[0] : "No description available.";
-
+    const coverImage = book.formats?.['image/jpeg'];
+    // Prefer 'authors' (new standard)
+    const authorName = book.authors?.map(a => a.name).join(', ') || 'Unknown Author';
+    const category = book.subjects?.[0] || 'General';
+    // Schema doesn't have description, using subjects as fallback
+    const description = book.summaries?.join(', ') || "No description available.";
+    const media_type = book.media_type;
     return (
         <div className="min-h-screen w-full bg-[#050505] text-white font-sans selection:bg-[#d4af37] selection:text-black relative flex flex-col items-center">
 
@@ -199,11 +183,6 @@ const BookDetailPage = () => {
                                 <span className="px-4 py-1.5 rounded-full border border-[#d4af37]/30 bg-[#d4af37]/10 text-[#d4af37] text-xs font-bold uppercase tracking-widest">
                                     {category}
                                 </span>
-                                {book.media_type === 'Sound' && (
-                                    <span className="px-4 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                                        <Headphones className="w-3 h-3" /> Audio
-                                    </span>
-                                )}
                             </div>
 
                             {/* Title & Author */}
@@ -219,29 +198,22 @@ const BookDetailPage = () => {
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 rounded-full bg-white/5"><Download className="w-5 h-5 text-[#d4af37]" /></div>
                                     <div className="flex flex-col">
-                                        <span className="text-white font-bold text-lg">{book.download_count.toLocaleString()}</span>
+                                        <span className="text-white font-bold text-lg">{(book.download_count ?? 0).toLocaleString()}</span>
                                         <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Downloads</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 rounded-full bg-white/5"><Languages className="w-5 h-5 text-[#d4af37]" /></div>
                                     <div className="flex flex-col">
-                                        <span className="text-white font-bold text-lg uppercase">{book.languages ? book.languages[0] : 'EN'}</span>
+                                        <span className="text-white font-bold text-lg uppercase">{book.languages?.[0] || 'EN'}</span>
                                         <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Language</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-white/5"><Star className="w-5 h-5 text-[#d4af37]" /></div>
+                                    <div className="p-2 rounded-full bg-white/5"><FileText className="w-5 h-5 text-[#d4af37]" /></div>
                                     <div className="flex flex-col">
-                                        <span className="text-white font-bold text-lg">4.8</span>
-                                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Rating</span>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-full bg-white/5"><Clock className="w-5 h-5 text-[#d4af37]" /></div>
-                                    <div className="flex flex-col">
-                                        <span className="text-white font-bold text-lg">~12h</span>
-                                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Read Time</span>
+                                        <span className="text-white font-bold text-lg">{media_type}</span>
+                                        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Media Type</span>
                                     </div>
                                 </div>
                             </div>

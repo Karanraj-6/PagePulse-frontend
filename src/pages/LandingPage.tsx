@@ -64,21 +64,32 @@ const LandingPage = () => {
               </p>
               
               {/* Button - Matching Gold Accent Color */}
-              <Button
-                  onClick={() => navigate('/auth')}
-                  // 1. REMOVE size="lg" (It causes the conflict)
-                  className="rounded-full bg-[#d4af37] text-black hover:bg-[#b8960c] text-xl font-bold shadow-[0_0_25px_rgba(212,175,55,0.4)] transition-all hover:scale-105"
-                  style={{ 
-                      height: 'auto',       // Unlocks height constraint
-                      paddingTop: '10px',   // Force top space
-                      paddingBottom: '10px',// Force bottom space
-                      paddingLeft: '30px',  // Force left space
-                      paddingRight: '30px'  // Force right space
-                  }}
-              >
-                  Start Your Journey
-              </Button>
+                <Button
+                onClick={() => navigate('/auth')}
+                className="
+                    rounded-full
+                    text-black
+                    text-xl
+                    font-bold
+                    shadow-[0_0_25px_rgba(212,175,55,0.4)]
+                    transition-all
+                    duration-300
+                    hover:scale-105
 
+                    bg-gradient-to-r
+                    from-[#bb750d]
+                    via-[#d45b0a]
+                    to-[#c8d50e]
+                    animate-gradient-x
+                "
+                style={{ 
+                    marginTop: '1.5rem',
+                    height: 'auto',
+                    padding: '10px 30px'
+                }}
+                >
+                Start Your Journey
+        </Button>
           </div>
         </div>
 

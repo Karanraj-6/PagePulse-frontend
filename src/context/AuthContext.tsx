@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User } from '../services/api';
-import { mockUser } from '../services/mockData';
+import { authApi, setAuthToken } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -18,46 +18,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing auth token
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      // In production, validate token with backend
-      // For now, use mock user
-      setUser(mockUser);
-    }
-    setIsLoading(false);
+    const initAuth = async () => {
+      console.log("=== 🔐 AUTH CHECK START ===");
+      try {
+        const userData = await authApi.getCurrentUser();
+        console.log("✅ Auth check SUCCESS - User:", userData.username);
+        setUser(userData);
+      } catch (error: any) {
+        console.log("❌ Auth check FAILED");
+        console.log("Error details:", error?.message || error);
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+        console.log("=== 🔐 AUTH CHECK END ===");
+      }
+    };
+    initAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
+    console.log("LOGIN START");
     setIsLoading(true);
     try {
-      // In production, call authApi.login(email, password)
-      // For demo, simulate login
-      console.log('Login:', email, password);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      localStorage.setItem('authToken', 'mock-token');
-      setUser(mockUser);
+      const response = await authApi.login(email, password);
+      
+      
+      // Double-check token was set (already done in authApi.login)
+      if (response.token) {
+        console.log("Token confirmed in response");
+      }
+
+      setUser(response.user);
+      console.log("LOGIN SUCCESS");
+    } catch (error) {
+      console.error('LOGIN FAILED');
+      console.error('Error:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
   const signup = async (username: string, email: string, password: string) => {
+    console.log("=== 📝 SIGNUP START ===");
     setIsLoading(true);
     try {
-      // In production, call authApi.signup({ username, email, password })
-      console.log('Signup:', username, email, password);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      localStorage.setItem('authToken', 'mock-token');
-      setUser({ ...mockUser, username, email });
+      await authApi.register({ username, email, password });
+      console.log("✅ Registration successful");
+
+      // Fetch user data
+      const userData = await authApi.getCurrentUser();
+      console.log("✅ User session confirmed:", userData.username);
+      setUser(userData);
+      console.log("=== 📝 SIGNUP SUCCESS ===");
+    } catch (error) {
+      console.error('=== ❌ SIGNUP FAILED ===');
+      console.error('Error:', error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
   const logout = () => {
-    localStorage.removeItem('authToken');
+    authApi.logout();
     setUser(null);
+    window.location.reload();
   };
 
   return (
