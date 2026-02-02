@@ -70,12 +70,28 @@ async function apiRequest<T>(endpoint: string, options: ApiOptions = {}): Promis
 
   const response = await fetch(url, config);
 
+  // Handle 202 responses (for ingestion)
+  if (response.status === 202) {
+    const data = await response.json();
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      return { ...data, _httpStatus: 202 } as T;
+    }
+    return data as T;
+  }
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(error.message || error.error || 'API request failed');
   }
 
-  return response.json();
+  const data = await response.json();
+  
+  // Only add _httpStatus if data is an object (not array)
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    return { ...data, _httpStatus: response.status } as T;
+  }
+  
+  return data as T;
 }
 
 // Helper to make requests to specific services
@@ -93,7 +109,6 @@ export const authApi = {
   register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/auth/register', { method: 'POST', body: data }),
   
   login: async (email: string, password: string) => {
-    // Backend returns: { token, user: { id, name, email, avatar } }
     const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/auth/login', { 
       method: 'POST', 
       body: { username: email, password } 
@@ -103,7 +118,6 @@ export const authApi = {
       setAuthToken(response.token);
     }
     
-    // Transform to match User interface
     const user: User = {
       id: response.user.id,
       username: response.user.name,
@@ -114,14 +128,12 @@ export const authApi = {
     return { user, token: response.token };
   },
 
-  // Backend returns: { id, username, email, avatar }
   getCurrentUser: () => authRequest<User>('/auth/me'),
   
   logout: () => {
     clearAuthToken();
   },
 
-  // User & Social Endpoints
   searchUsers: (query: string) =>
     authRequest<User[]>('/users', {
       params: { q: query },
@@ -156,8 +168,15 @@ export const booksApi = {
 
   getById: (id: string) => bookRequest<Book>(`/books/${id}`),
 
-  getPages: (id: string) =>
-    bookRequest<BookPagesResponse>(`/books/${id}/pages`),
+  getPages: (id: string, limit: number = 20, offset: number = 0) =>
+    bookRequest<PagesResponse>(`/books/${id}/pages`, {
+      params: { limit, offset },
+    }),
+
+  getIngestionStatus: (id: string) =>
+    bookRequest<{ status: string; message?: string; page_count?: number; error?: string }>(
+      `/books/${id}/ingestion-status`
+    ),
 
   getCategories: () => bookRequest<string[]>('/categories'),
 };
@@ -186,7 +205,6 @@ export const userApi = {
   
   updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
   
-  // Upload avatar with file
   uploadAvatar: async (file: File): Promise<{ success: boolean; avatarUrl: string }> => {
     const token = getAuthToken();
     if (!token) {
@@ -261,6 +279,20 @@ export interface Book {
 export interface BookPage {
   page: number;
   html: string;
+}
+
+export interface PagesResponse {
+  book_id: number;
+  title: string;
+  total_pages: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+  pages: BookPage[];
+  status?: string;
+  message?: string;
+  estimated_time?: string;
+  _httpStatus?: number;
 }
 
 export interface BookPagesResponse {

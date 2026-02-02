@@ -61,7 +61,7 @@ const AuthPage = () => {
         className="absolute top-8 left-8 z-20 text-zinc-400 hover:text-[#d4af37] transition-all flex items-center gap-2 group"
       >
         <div className="p-2 rounded-full bg-white/5 border border-white/10 group-hover:border-[#d4af37]/50 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-10 h-10" />
         </div>
       </button>
 
