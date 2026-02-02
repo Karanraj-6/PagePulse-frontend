@@ -14,7 +14,7 @@ import {
     Search,
     Bell,
     BellOff,
-    Loader2 // Added for page loading state
+    Loader2
 } from 'lucide-react';
 
 import {
@@ -60,7 +60,7 @@ const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
     { id: 3, user: 'Bob', text: 'I love how Mark Twain describes the old lady.', isMe: false, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob", page: 0 }
 ];
 
-const BATCH_SIZE = 20; // Load 20 pages at a time
+const BATCH_SIZE = 20;
 
 const BookReaderPage = () => {
     const { id } = useParams();
@@ -68,19 +68,19 @@ const BookReaderPage = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bookRef = useRef<any>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // --- STATE ---
     const [bookMetadata, setBookMetadata] = useState<{ title: string, author: string, id: number, cover: string } | null>(null);
-
-    // UPDATED: Pages is now (string | null)[] to allow sparse loading
     const [pages, setPages] = useState<(string | null)[]>([]);
-    const [totalPagesCount, setTotalPagesCount] = useState(0); // Total pages from API
-
+    const [totalPagesCount, setTotalPagesCount] = useState(0);
     const [currentSpread, setCurrentSpread] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
-
-    // --- LAZY LOADING STATE ---
     const [isFetchingBatch, setIsFetchingBatch] = useState(false);
+
+    // INGESTION STATE
+    const [isIngesting, setIsIngesting] = useState(false);
+    const [ingestionMessage, setIngestionMessage] = useState('');
 
     // UI Toggles
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -92,48 +92,119 @@ const BookReaderPage = () => {
     const [chatMessage, setChatMessage] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT_MESSAGES);
 
-    // --- NEW FEATURES STATE ---
+    // Notifications
     const [unreadCount, setUnreadCount] = useState(0);
     const [popupMessage, setPopupMessage] = useState<ChatMessage | null>(null);
     const [isPopupEnabled, setIsPopupEnabled] = useState(true);
 
-    // 1. Initial Fetch
+    // Poll Ingestion Status
+    const pollIngestionStatus = useCallback(async () => {
+        if (!id) return;
+        try {
+            const status = await booksApi.getIngestionStatus(id);
+            console.log('[Poll] Ingestion status:', status);
+
+            if (status.status === 'complete') {
+                // Ingestion done - reload pages
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                }
+                setIsIngesting(false);
+                
+                // Fetch pages now
+                const pagesData = await booksApi.getPages(id, BATCH_SIZE, 0);
+                if (pagesData.total_pages > 0 && pagesData.pages?.length > 0) {
+                    setTotalPagesCount(pagesData.total_pages);
+                    const totalSlots = pagesData.total_pages + 1;
+                    const initPages = new Array(totalSlots).fill(null);
+                    initPages[0] = pages[0]; // Keep existing cover
+                    pagesData.pages.forEach((p: any, i: number) => {
+                        initPages[i + 1] = p.html;
+                    });
+                    setPages(initPages);
+                }
+            } else if (status.status === 'failed') {
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                    pollIntervalRef.current = null;
+                }
+                setIngestionMessage(`Failed: ${status.error}`);
+            } else {
+                setIngestionMessage(status.message || 'Processing...');
+            }
+        } catch (error) {
+            console.error('[Poll] Error:', error);
+        }
+    }, [id, pages]);
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+        };
+    }, []);
+
+    // 1. Initial Fetch - FIXED dependency array
     useEffect(() => {
         const fetchData = async () => {
             if (!id) return;
             setIsLoading(true);
+
             try {
-                // Fetch Metadata and the FIRST batch of pages (offset 0)
-                const [bookData, pagesData] = await Promise.all([
-                    booksApi.getById(id),
-                    booksApi.getPages(id, BATCH_SIZE, 0)
-                ]);
+                const bookData = await booksApi.getById(id);
+
+                const coverUrl = bookData.formats?.['image/jpeg'] || '';
+                const coverPage = `<div style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1a1a1a;"><img src="${coverUrl}" style="max-height:80%; max-width:90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" /><h1 style="color:#d4af37; margin-top:20px; font-size:1.5em; text-align:center;">${bookData.title}</h1></div>`;
 
                 setBookMetadata({
                     title: bookData.title,
-                    author: bookData.authors?.map(a => a.name).join(', ') || 'Unknown',
+                    author: bookData.authors?.map((a: any) => a.name).join(', ') || 'Unknown',
                     id: Number(bookData.id),
-                    cover: bookData.formats?.['image/jpeg'] || ''
+                    cover: coverUrl
                 });
 
-                setTotalPagesCount(pagesData.total_pages);
+                const pagesData = await booksApi.getPages(id, BATCH_SIZE, 0);
 
-                // Initialize Sparse Array: [Cover, ...null, ...null]
-                // Total slots = API pages + 1 (for manual cover)
-                const totalSlots = pagesData.total_pages + 1;
-                const initPages = new Array(totalSlots).fill(null);
+                console.log('=== DEBUG pagesData ===');
+                console.log('_httpStatus:', pagesData._httpStatus);
+                console.log('total_pages:', pagesData.total_pages);
+                console.log('pages length:', pagesData.pages?.length);
 
-                // Create Cover
-                const coverUrl = bookData.formats?.['image/jpeg'] || '';
-                const coverPage = `<div style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1a1a1a;"><img src="${coverUrl}" style="max-height:80%; max-width:90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" /><h1 style="color:#d4af37; margin-top:20px; font-size:1.5em; text-align:center;">${bookData.title}</h1></div>`;
-                initPages[0] = coverPage;
+                if (pagesData._httpStatus === 202) {
+                    setIsIngesting(true);
+                    setIngestionMessage(pagesData.message || 'Book is being prepared...');
+                    setPages([coverPage]);
+                    setTotalPagesCount(0);
 
-                // Fill First Batch (Indices 1 to 20)
-                pagesData.pages.forEach((p, i) => {
-                    initPages[i + 1] = p.html;
-                });
+                    if (!pollIntervalRef.current) {
+                        pollIntervalRef.current = setInterval(pollIngestionStatus, 3000);
+                    }
+                } else if (pagesData.total_pages > 0 && pagesData.pages && pagesData.pages.length > 0) {
+                    console.log('>>> SUCCESS - Loading', pagesData.total_pages, 'pages');
+                    setTotalPagesCount(pagesData.total_pages);
 
-                setPages(initPages);
+                    const totalSlots = pagesData.total_pages + 1;
+                    const initPages = new Array(totalSlots).fill(null);
+                    initPages[0] = coverPage;
+
+                    pagesData.pages.forEach((p: any, i: number) => {
+                        initPages[i + 1] = p.html;
+                    });
+
+                    setPages(initPages);
+                    setIsIngesting(false);
+                } else {
+                    setIsIngesting(true);
+                    setIngestionMessage('Preparing book pages...');
+                    setPages([coverPage]);
+
+                    if (!pollIntervalRef.current) {
+                        pollIntervalRef.current = setInterval(pollIngestionStatus, 3000);
+                    }
+                }
 
             } catch (error) {
                 console.error("Failed to load book:", error);
@@ -141,15 +212,13 @@ const BookReaderPage = () => {
                 setIsLoading(false);
             }
         };
-        fetchData();
-    }, [id]);
 
-    // 2. Load Specific Batch Logic (Sparse Loading)
+        fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]); // <-- REMOVED pollIngestionStatus from dependencies!
+    // 2. Load Specific Batch Logic
     const loadBatch = async (offsetIndex: number) => {
         if (!id || isFetchingBatch) return;
-
-        // Check if this batch is already loaded
-        // offsetIndex corresponds to array index (offsetIndex + 1) due to Cover
         if (pages[offsetIndex + 1] !== null) return;
 
         setIsFetchingBatch(true);
@@ -160,8 +229,8 @@ const BookReaderPage = () => {
 
             setPages(prev => {
                 const next = [...prev];
-                data.pages.forEach((p, i) => {
-                    const targetIndex = offsetIndex + i + 1; // +1 for Cover
+                data.pages.forEach((p: any, i: number) => {
+                    const targetIndex = offsetIndex + i + 1;
                     if (targetIndex < next.length) {
                         next[targetIndex] = p.html;
                     }
@@ -176,18 +245,12 @@ const BookReaderPage = () => {
         }
     };
 
-    // 3. Trigger Load More based on Scroll/Flip position (Sequential Prefetch)
+    // 3. Trigger Load More based on Scroll/Flip position
     useEffect(() => {
-        if (!pages.length) return;
+        if (!pages.length || isIngesting) return;
 
-        // Current actual page number (approx)
         const currentPageIndex = currentSpread * 2;
-
-        // Calculate the start of the NEXT batch
-        // e.g. if current is 15, next batch starts at 20.
         const nextBatchStart = Math.ceil(currentPageIndex / BATCH_SIZE) * BATCH_SIZE;
-
-        // THRESHOLD: Start loading when user is 5 pages away from the next batch
         const PRELOAD_THRESHOLD = 5;
 
         if (
@@ -195,13 +258,12 @@ const BookReaderPage = () => {
             !isFetchingBatch &&
             nextBatchStart < pages.length &&
             (nextBatchStart - currentPageIndex) <= PRELOAD_THRESHOLD &&
-            pages[nextBatchStart + 1] === null // Check if next batch is empty
+            pages[nextBatchStart + 1] === null
         ) {
             loadBatch(nextBatchStart);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSpread, pages, isFetchingBatch, isLoading]);
-
+    }, [currentSpread, pages, isFetchingBatch, isLoading, isIngesting]);
 
     // 4. Flip Event
     const onFlip = useCallback((e: { data: number }) => {
@@ -211,29 +273,21 @@ const BookReaderPage = () => {
 
     // 5. Sidebar Jump Logic
     const handleJumpTo = async (targetIndex: number) => {
-        // targetIndex 0 = Cover
-        // targetIndex 1 = Page 1 (API Offset 0)
-        // targetIndex 21 = Page 21 (API Offset 20)
-
         if (targetIndex === 0) {
             bookRef.current?.pageFlip().flip(0);
             return;
         }
 
-        // Calculate which batch this page belongs to
-        // (targetIndex - 1) converts to 0-based content index
         const batchStart = Math.floor((targetIndex - 1) / BATCH_SIZE) * BATCH_SIZE;
 
-        // If content is missing, load it first
         if (pages[targetIndex] === null) {
             await loadBatch(batchStart);
         }
 
-        // Then Flip
         bookRef.current?.pageFlip().flip(targetIndex);
     };
 
-    // ... (Chat Handlers and Effects remain the same) ...
+    // Chat Handlers
     const handleSendMessage = () => {
         if (!chatMessage.trim()) return;
         const newMessage: ChatMessage = { id: Date.now(), user: 'You', text: chatMessage, isMe: true, avatar: null, page: currentSpread };
@@ -280,8 +334,7 @@ const BookReaderPage = () => {
         setInviteMode('direct');
     };
 
-
-    // --- Loading Page Component (rendered when content is null) ---
+    // Loading Page Component
     const LoadingPage = ({ number }: { number: number }) => (
         <div className="h-full w-full bg-[#fdfbf7] border-r border-[#e3d5c6] flex flex-col items-center justify-center relative">
             <Loader2 className="w-8 h-8 text-[#d4af37] animate-spin mb-4" />
@@ -290,8 +343,8 @@ const BookReaderPage = () => {
         </div>
     );
 
-    // --- UPDATED: generateIframeContent with smaller text & image fixes ---
-const generateIframeContent = (htmlChunk: string) => `
+    // Generate iframe content
+    const generateIframeContent = useCallback((htmlChunk: string) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -302,8 +355,8 @@ const generateIframeContent = (htmlChunk: string) => `
             margin: 0; 
             padding: 30px 35px; 
             font-family: 'Merriweather', Georgia, serif; 
-            font-size: 13px;  /* Reduced from 15px */
-            line-height: 1.7; /* Slightly tighter */
+            font-size: 13px;
+            line-height: 1.7;
             color: #2c2c2c; 
             background: #fdfbf7; 
             height: 100vh; 
@@ -325,7 +378,6 @@ const generateIframeContent = (htmlChunk: string) => `
             padding-top: 3px;
             color: #8B7355;
         }
-        /* Image handling - scale to fit */
         img { 
             max-width: 90%; 
             max-height: 150px; 
@@ -334,10 +386,7 @@ const generateIframeContent = (htmlChunk: string) => `
             border-radius: 4px;
             object-fit: contain;
         }
-        /* Handle broken images gracefully */
-        img[src=""], img:not([src]) {
-            display: none;
-        }
+       
         blockquote {
             border-left: 2px solid #d4af37;
             margin: 1em 0;
@@ -352,9 +401,9 @@ const generateIframeContent = (htmlChunk: string) => `
     </style>
 </head>
 <body>${htmlChunk}</body>
-</html>`;
+</html>`, []);
 
-    // Memoize sidebar items to prevent re-calculation on every render
+    // Memoize sidebar items
     const sidebarItems = useMemo(() => {
         const items: { label: string; index: number }[] = [];
         if (totalPagesCount > 0) {
@@ -366,14 +415,32 @@ const generateIframeContent = (htmlChunk: string) => `
         return items;
     }, [totalPagesCount]);
 
-    // Memoize the iframe content for each page to prevent re-generation on every render
+    // Memoize page contents
     const memoizedPageContents = useMemo(() => {
         return pages.map((htmlChunk) => htmlChunk ? generateIframeContent(htmlChunk) : null);
     }, [pages, generateIframeContent]);
 
-    if (isLoading) return <div className="min-h-screen bg-[#050505] flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]" /></div>;
+    // LOADING STATE
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]" />
+            </div>
+        );
+    }
 
-    // Total Spreads uses the full pages length (including nulls)
+    // INGESTION STATE
+    if (isIngesting) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white">
+                <Loader2 className="w-16 h-16 text-[#d4af37] animate-spin mb-6" />
+                <h2 className="text-2xl font-bold mb-2">Preparing Your Book</h2>
+                <p className="text-zinc-400 text-center max-w-md">{ingestionMessage}</p>
+                <p className="text-zinc-500 text-sm mt-4">This may take a minute for first-time reads...</p>
+            </div>
+        );
+    }
+
     const totalSpreads = Math.ceil((pages.length) / 2);
 
     return (
@@ -437,7 +504,7 @@ const generateIframeContent = (htmlChunk: string) => `
             {/* MAIN CONTENT */}
             <div className="flex-1 flex relative overflow-hidden bg-[#111]">
 
-                {/* UPDATED TOC SIDEBAR */}
+                {/* TOC SIDEBAR */}
                 <style>{`
                     .toc-sidebar-list::-webkit-scrollbar { width: 6px; }
                     .toc-sidebar-list::-webkit-scrollbar-track { background: #1a1a1a; border-radius: 3px; }
@@ -451,7 +518,7 @@ const generateIframeContent = (htmlChunk: string) => `
                         left: 0,
                         top: 0,
                         width: isSidebarOpen ? '256px' : '0px',
-                        height: 'calc(100vh - 64px)', // Full height minus header
+                        height: 'calc(100vh - 64px)',
                         backgroundColor: '#0a0a0a',
                         borderRight: '1px solid rgba(255,255,255,0.1)',
                         transition: 'all 0.3s',
@@ -488,11 +555,8 @@ const generateIframeContent = (htmlChunk: string) => `
                                             border: 'none',
                                             cursor: 'pointer',
                                             backgroundColor: (() => {
-                                                // Current page index (left page of spread)
                                                 const currentPageIndex = currentSpread * 2;
-                                                // For Cover (index 0), only highlight when on spread 0
                                                 if (item.index === 0) return currentSpread === 0 ? '#d4af37' : 'transparent';
-                                                // For other items, check if current page falls within this batch range
                                                 const batchStart = item.index;
                                                 const batchEnd = item.index + BATCH_SIZE;
                                                 return currentPageIndex >= batchStart && currentPageIndex < batchEnd ? '#d4af37' : 'transparent';
@@ -532,7 +596,6 @@ const generateIframeContent = (htmlChunk: string) => `
                 <main className="flex-1 relative flex flex-col items-center justify-center p-4 lg:p-8 overflow-hidden">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#d4af37]/5 blur-[120px] rounded-full pointer-events-none"></div>
                     <div className="relative z-10 w-full flex justify-center items-center h-[85vh]">
-                        {/* Only render flipbook if pages array has been initialized */}
                         {pages.length > 0 && (
                             <HTMLFlipBook
                                 width={400}
@@ -553,7 +616,6 @@ const generateIframeContent = (htmlChunk: string) => `
                                     <div key={index} className="page bg-[#fdfbf7] h-full border-r border-[#e3d5c6] relative overflow-hidden">
                                         <div className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing" title="Drag to Flip" style={{ background: 'transparent' }} />
 
-                                        {/* CONDITIONAL RENDER: Content vs Loader */}
                                         {iframeContent ? (
                                             <>
                                                 <iframe srcDoc={iframeContent} title={`Page ${index}`} className="w-full h-full border-none z-10 relative pointer-events-none" style={{ pointerEvents: 'none' }} />
@@ -566,10 +628,8 @@ const generateIframeContent = (htmlChunk: string) => `
                                 ))}
                             </HTMLFlipBook>
                         )}
-
                     </div>
 
-                    {/* Loader Indicator for Background Fetching */}
                     {isFetchingBatch && (
                         <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-[#000]/80 text-[#d4af37] px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border border-[#d4af37]/30 z-50">
                             <Loader2 className="w-3 h-3 animate-spin" />
@@ -591,7 +651,7 @@ const generateIframeContent = (htmlChunk: string) => `
                     </div>
                 </main>
 
-                {/* CHAT SIDEBAR (UNCHANGED) */}
+                {/* CHAT SIDEBAR */}
                 {showChat && (
                     <aside style={{ width: '350px', backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 50, boxShadow: '-5px 0 20px rgba(0,0,0,0.5)' }}>
                         <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -633,7 +693,7 @@ const generateIframeContent = (htmlChunk: string) => `
                     </aside>
                 )}
 
-                {/* INVITE MODAL (UNCHANGED) */}
+                {/* INVITE MODAL */}
                 {showInviteModal && (
                     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
                         <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>

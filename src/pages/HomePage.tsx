@@ -166,7 +166,7 @@ const HomePage = () => {
                             style={{ scrollBehavior: 'smooth', minHeight: '550px' }}
                         >
                             {trendingBooks.length > 0 ? trendingBooks.map((book) => (
-                                <div key={`trending-${book.id}`} className="w-[300px] shrink-0 snap-start">
+                                <div key={`trending-${book.id}`} className="w-[18rem] shrink-0 snap-start">
                                     <BookCard book={book} />
                                 </div>
                             )) : (
@@ -185,8 +185,8 @@ const HomePage = () => {
                     {/* LEFT SIDE (Wheel) */}
                     <div
                         ref={categoryScrollRef}
-                        className="w-full lg:w-[40%] h-full flex flex-col justify-start items-start pl-4 lg:pl-10 relative select-none cursor-ns-resize z-30"
-                        style={{ paddingTop: '3rem', marginLeft: '3rem' }}
+                        className="w-full h-full flex flex-col justify-start items-start pl-4 lg:pl-10 relative select-none cursor-ns-resize z-30"
+                        style={{ paddingTop: '3rem', marginLeft: '3rem', width: '20rem' }}
                     >
 
                         {/* Moved instructions down */}
@@ -227,8 +227,8 @@ const HomePage = () => {
 
                     {/* RIGHT SIDE (Category Carousel) */}
                     <div
-                        className="w-full lg:w-[60%] h-full flex flex-col justify-center px-4 relative z-20"
-                        style={{ marginRight: '40px' }}
+                        className="h-full flex flex-col justify-center px-4 relative z-20"
+                        style={{ width: '55rem', marginRight: '40px' }}
                     >
                         {/* Category Header */}
                         <div
@@ -253,10 +253,10 @@ const HomePage = () => {
                             {/* FIX: Increased padding-bottom to pb-20 and min-height to 550px */}
                             <div
                                 className="flex gap-6 overflow-x-auto pb-20 snap-x hide-scrollbar"
-                                style={{ minHeight: '550px' }}
+                                style={{ minHeight: '550px', justifyContent: 'start' }}
                             >
                                 {categoryBooks.length > 0 ? categoryBooks.map((book) => (
-                                    <div key={book.id} className="w-[300px] shrink-0 snap-start">
+                                    <div key={book.id} className="w-[18rem] shrink-0 snap-start" style={{ justifyContent: 'start' }}>
                                         <BookCard book={book} />
                                     </div>
                                 )) : (
@@ -295,44 +295,35 @@ const BookCard = ({ book }: { book: Book }) => {
     return (
         <div
             onClick={() => navigate(`/books/${book.id}/${slugify(book.title)}`)}
-            className="group relative h-[450px] w-full bg-[#111]/90 border border-white/5 rounded-2xl overflow-hidden hover:border-[#d4af37]/40 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,1)] flex flex-col backdrop-blur-sm cursor-pointer">
-            <div className="relative flex-1 overflow-hidden">
+            className="group relative bg-[#111] border border-white/5 rounded-2xl overflow-hidden hover:border-[#d4af37]/40 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,1)] flex flex-col cursor-pointer h-[28rem] w-full"
+        >
+            {/* Cover Image - flex-1 fills remaining space */}
+            <div className="flex-1 overflow-hidden bg-[#1a1a1a] min-h-0">
                 <img
                     src={coverImage}
                     alt={book.title}
                     className="object-cover w-full h-full transition-transform duration-700 group-hover:scale-105 group-hover:brightness-110"
+                    onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/300x450/1a1a1a/d4af37?text=No+Cover";
+                    }}
                 />
             </div>
-            <div className="p-5 h-[140px] flex flex-col justify-between bg-transparent" style={{ margin: '0.5rem' }}>
-                <div>
-                    <h3 className="text-white font-bold text-lg leading-tight line-clamp-1 mb-1 group-hover:text-[#d4af37] transition-colors">
+            {/* Info Section - fixed height */}
+            <div className="p-4 flex flex-col justify-between bg-[#111] shrink-0" style={{ height: '8rem' }}>
+                <div style={{ margin: '0.5rem' }}>
+                    <h3 className="text-white font-bold text-base leading-tight line-clamp-1 mb-1 group-hover:text-[#d4af37] transition-colors">
                         {book.title}
                     </h3>
-                    <p className="text-zinc-500 text-xs">{authorName}</p>
+                    <p className="text-zinc-500 text-xs line-clamp-1">{authorName}</p>
                 </div>
-                <div className="flex items-center justify-between mt-auto" style={{ margin: '1rem' }}>
-                    <button
-                        className="
-                            bg-gradient-to-r
-                            from-[#bb750d]
-                            via-[#d45b0a]
-                            to-[#c8d50e]
-                            animate-gradient-x
-
-                            text-black
-                            font-medium
-
-                            flex
-                            items-center
-                            justify-center
-                            rounded-sm
-                        "
-                        style={{ padding: '0.1rem 0.2rem' }}
-                    >
+                <div className="flex items-center justify-between mt-auto" style={{ margin: '0.5rem' }}>
+                    <button className="bg-gradient-to-r from-[#bb750d] via-[#d45b0a] to-[#c8d50e] text-black font-medium rounded-sm px-3 py-1 text-sm">
                         Details
                     </button>
-
-                    <span className="text-white font-bold text-lg"><Download className="w-5 h-5 text-[#d4af37]" />{book.download_count}</span>
+                    <span className="text-white font-bold text-sm flex items-center gap-1">
+                        <Download className="w-4 h-4 text-[#d4af37]" />
+                        {book.download_count}
+                    </span>
                 </div>
             </div>
         </div>
