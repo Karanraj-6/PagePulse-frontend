@@ -355,7 +355,7 @@ const BookReaderPage = () => {
             margin: 0; 
             padding: 30px 35px; 
             font-family: 'Merriweather', Georgia, serif; 
-            font-size: 13px;
+            font-size: 12px;
             line-height: 1.7;
             color: #2c2c2c; 
             background: #fdfbf7; 

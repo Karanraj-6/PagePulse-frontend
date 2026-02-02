@@ -79,10 +79,12 @@ const SearchPage = () => {
         const search = query || undefined;
         const cat = category || undefined;
 
+        console.log('[SearchPage] Fetching with:', { page: 1, category: cat, search });
         const data = await booksApi.getBooks(1, cat, search);
+        console.log('[SearchPage] API Response:', data);
         setResults(data || []);
       } catch (error) {
-        console.error("Search failed:", error);
+        console.error("[SearchPage] Search failed:", error);
         setResults([]);
       } finally {
         setIsLoading(false);
