@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import HTMLFlipBook from 'react-pageflip';
 import {
     ArrowLeft,
@@ -26,7 +26,7 @@ import {
 } from "../components/ui/pagination";
 
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { booksApi } from '../services/api';
+import { booksApi, type Book } from '../services/api';
 
 // --- TYPES ---
 interface ChatMessage {
@@ -65,6 +65,10 @@ const BATCH_SIZE = 20;
 const BookReaderPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+
+    // Get book from navigation state (passed from SearchPage/BookDetailPage)
+    const bookFromState = (location.state as { book?: Book })?.book;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bookRef = useRef<any>(null);
     const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -111,7 +115,7 @@ const BookReaderPage = () => {
                     pollIntervalRef.current = null;
                 }
                 setIsIngesting(false);
-                
+
                 // Fetch pages now
                 const pagesData = await booksApi.getPages(id, BATCH_SIZE, 0);
                 if (pagesData.total_pages > 0 && pagesData.pages?.length > 0) {
@@ -154,7 +158,25 @@ const BookReaderPage = () => {
             setIsLoading(true);
 
             try {
-                const bookData = await booksApi.getById(id);
+                // Try to get book from API, fallback to navigation state
+                let bookData: Book | null = null;
+
+                try {
+                    bookData = await booksApi.getById(id);
+                } catch (err) {
+                    console.log('[BookReaderPage] getById failed, using book from state');
+                    if (bookFromState) {
+                        bookData = bookFromState;
+                    } else {
+                        throw err; // Re-throw if we don't have fallback
+                    }
+                }
+
+                if (!bookData) {
+                    console.error("No book data available");
+                    setIsLoading(false);
+                    return;
+                }
 
                 const coverUrl = bookData.formats?.['image/jpeg'] || '';
                 const coverPage = `<div style="height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#1a1a1a;"><img src="${coverUrl}" style="max-height:80%; max-width:90%; box-shadow: 0 10px 30px rgba(0,0,0,0.5);" /><h1 style="color:#d4af37; margin-top:20px; font-size:1.5em; text-align:center;">${bookData.title}</h1></div>`;
@@ -169,18 +191,28 @@ const BookReaderPage = () => {
                 const pagesData = await booksApi.getPages(id, BATCH_SIZE, 0);
 
                 console.log('=== DEBUG pagesData ===');
+                console.log('Full response:', pagesData);
                 console.log('_httpStatus:', pagesData._httpStatus);
+                console.log('status:', pagesData.status);
                 console.log('total_pages:', pagesData.total_pages);
                 console.log('pages length:', pagesData.pages?.length);
 
-                if (pagesData._httpStatus === 202) {
+                // Handle 202 = ingestion in progress OR status indicates processing
+                const isIngestingBook =
+                    pagesData._httpStatus === 202 ||
+                    pagesData.status === 'processing' ||
+                    pagesData.status === 'started' ||
+                    (pagesData.total_pages === 0 && (!pagesData.pages || pagesData.pages.length === 0));
+
+                if (isIngestingBook) {
                     setIsIngesting(true);
-                    setIngestionMessage(pagesData.message || 'Book is being prepared...');
+                    setIngestionMessage(pagesData.message || 'Book is being prepared. This may take 15-30 seconds...');
                     setPages([coverPage]);
                     setTotalPagesCount(0);
 
+                    // Start polling for ingestion status
                     if (!pollIntervalRef.current) {
-                        pollIntervalRef.current = setInterval(pollIngestionStatus, 3000);
+                        pollIntervalRef.current = setInterval(pollIngestionStatus, 5000); // Retry every 5 seconds
                     }
                 } else if (pagesData.total_pages > 0 && pagesData.pages && pagesData.pages.length > 0) {
                     console.log('>>> SUCCESS - Loading', pagesData.total_pages, 'pages');
@@ -227,16 +259,24 @@ const BookReaderPage = () => {
         try {
             const data = await booksApi.getPages(id, BATCH_SIZE, offsetIndex);
 
-            setPages(prev => {
-                const next = [...prev];
-                data.pages.forEach((p: any, i: number) => {
-                    const targetIndex = offsetIndex + i + 1;
-                    if (targetIndex < next.length) {
-                        next[targetIndex] = p.html;
-                    }
+            // Handle 202 = still ingesting, skip this batch for now
+            if (data._httpStatus === 202 || data.status === 'processing' || data.status === 'started') {
+                console.log('[loadBatch] Book still ingesting, skipping batch load');
+                return;
+            }
+
+            if (data.pages && data.pages.length > 0) {
+                setPages(prev => {
+                    const next = [...prev];
+                    data.pages.forEach((p: any, i: number) => {
+                        const targetIndex = offsetIndex + i + 1;
+                        if (targetIndex < next.length) {
+                            next[targetIndex] = p.html;
+                        }
+                    });
+                    return next;
                 });
-                return next;
-            });
+            }
 
         } catch (error) {
             console.error("Error loading batch:", error);

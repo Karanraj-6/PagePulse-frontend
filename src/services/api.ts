@@ -179,6 +179,17 @@ export const booksApi = {
     ),
 
   getCategories: () => bookRequest<string[]>('/categories'),
+
+  trackBook: (book: Book) =>
+  bookRequest<{ success: boolean }>(`/books/${book.id}/track`, {
+    method: 'POST',
+    body: {
+      title: book.title,
+      authors: book.authors,
+      formats: book.formats,
+      download_count: book.download_count
+    }
+  }),
 };
 
 // Chat Service

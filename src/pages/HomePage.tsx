@@ -294,7 +294,7 @@ const BookCard = ({ book }: { book: Book }) => {
 
     return (
         <div
-            onClick={() => navigate(`/books/${book.id}/${slugify(book.title)}`)}
+            onClick={() => navigate(`/books/${book.id}/${slugify(book.title)}`, { state: { book } })}
             className="group relative bg-[#111] border border-white/5 rounded-2xl overflow-hidden hover:border-[#d4af37]/40 transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,1)] flex flex-col cursor-pointer h-[28rem] w-full"
         >
             {/* Cover Image - flex-1 fills remaining space */}

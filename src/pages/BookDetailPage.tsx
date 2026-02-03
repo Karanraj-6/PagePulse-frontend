@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { booksApi, type Book } from '../services/api';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Star, Clock, BookOpen, Heart, Share2, Download, Languages, Headphones, FileText } from 'lucide-react';
 import Header from '../components/Header';
 import TiltedCard from '../components/TiltedCard';
@@ -11,8 +11,13 @@ import bgImage from '../assets/lp.jpg';
 const BookDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [book, setBook] = useState<Book | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const location = useLocation();
+
+    // Get book from navigation state (passed from SearchPage)
+    const bookFromState = (location.state as { book?: Book })?.book;
+
+    const [book, setBook] = useState<Book | null>(bookFromState || null);
+    const [isLoading, setIsLoading] = useState(!bookFromState); // Skip loading if we have state
     const [isFavorite, setIsFavorite] = useState(false);
     const [isBackHovered, setIsBackHovered] = useState(false);
     const [searchValue, setSearchValue] = useState("");
@@ -35,6 +40,13 @@ const BookDetailPage = () => {
     };
 
     useEffect(() => {
+        // If we already have book from state, skip API call
+        if (bookFromState) {
+            setBook(bookFromState);
+            setIsLoading(false);
+            return;
+        }
+
         const fetchBook = async () => {
             if (!id) return;
             setIsLoading(true);
@@ -43,14 +55,14 @@ const BookDetailPage = () => {
                 setBook(data);
             } catch (err) {
                 console.error("Failed to fetch book:", err);
-                setBook(null); // Or set error state
+                setBook(null);
             } finally {
                 setIsLoading(false);
             }
         };
 
         fetchBook();
-    }, [id]);
+    }, [id, bookFromState]);
 
     if (isLoading) {
         return (
@@ -253,6 +265,7 @@ const BookDetailPage = () => {
                                         paddingLeft: '1.5rem',
                                         paddingRight: '1.5rem'
                                     }}
+                                    
                                 >
                                     <BookOpen className="w-5 h-5" />
                                     Start Reading
