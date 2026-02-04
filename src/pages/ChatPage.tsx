@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -8,103 +8,224 @@ import {
     CheckCheck,
     UserX,
     Ban,
-    Trash2
+    Trash2,
+    Loader2
 } from 'lucide-react';
 import TextPressure from '../components/TextPressure';
 import { chatApi, authApi, type User, type Message } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
+
+interface UIMessage {
+    id: string; // unique ID
+    text: string;
+    sender: 'me' | 'them';
+    time: string;
+    status: 'sending' | 'sent' | 'read';
+    rawDate: Date; // useful for sorting
+}
 
 const ChatPage = () => {
-    // Inside ChatPage component
     const { user: currentUser } = useAuth();
+    const { socket } = useSocket();
     const { username } = useParams<{ username: string }>();
     const navigate = useNavigate();
-    const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Refs
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+    // State
     const [activeUser, setActiveUser] = useState<User | null>(null);
-    const [messages, setMessages] = useState<any[]>([]); // Using any for UI mapping compatibility temporarily
+    const [messages, setMessages] = useState<UIMessage[]>([]);
     const [conversationId, setConversationId] = useState<string | null>(null);
     const [newMessage, setNewMessage] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    // Load Data
+    // Pagination State
+    const [hasMore, setHasMore] = useState(false);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+    // 1. Initialize Chat
     useEffect(() => {
         const initChat = async () => {
             if (!username || !currentUser) return;
             setIsLoading(true);
+            setError(null);
+
             try {
-                // 1. Resolve Target User
+                // Resolve user
                 const users = await authApi.searchUsers(username);
                 const target = users.find(u => u.username.toLowerCase() === username.toLowerCase());
 
                 if (!target) {
-                    console.error("User not found");
-                    // Handle not found (redirect or show error)
+                    setError("User not found");
                     setIsLoading(false);
                     return;
                 }
                 setActiveUser(target);
 
-                // 2. Initiate/Get Conversation
-                const { conversationId } = await chatApi.initiatePrivateChat(currentUser.id, target.id);
-                setConversationId(conversationId);
+                // Get conversation ID
+                const { conversationId: cid } = await chatApi.initiatePrivateChat(currentUser.id, target.id);
+                setConversationId(cid);
 
-                // 3. Fetch History (if generic REST endpoint exists, otherwise empty)
-                // Ignoring if getMessages throws 404 for empty chat
-                try {
-                    const history = await chatApi.getMessages(conversationId);
-                    // Map history to UI format
-                    const mappedMessages = history.map((msg: Message) => ({
-                        id: msg.id,
-                        text: msg.content,
-                        sender: msg.senderId === currentUser.id ? 'me' : 'them',
-                        time: new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        status: 'read' // default
-                    }));
-                    setMessages(mappedMessages);
-                } catch (err) {
-                    // New conversation might not have messages
-                    setMessages([]);
+                // Load initial history
+                const history = await chatApi.getPrivateMessages(cid, 50);
+
+                // Map to UI
+                const mapped = history.messages.map((msg: Message) => ({
+                    id: msg.message_id,
+                    text: msg.content,
+                    sender: msg.sender_id === currentUser.id ? 'me' : 'them',
+                    time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    status: 'read',
+                    rawDate: new Date(msg.sent_at)
+                }) as UIMessage); // Type assertion needed until backend aligns perfectly
+
+                // Backend returns desc (newest first)? We need oldest first for chat view
+                // Actually assuming backend returns oldest -> newest or we reverse here.
+                // Let's sort manually to be safe.
+                mapped.sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+
+                setMessages(mapped);
+                setHasMore(history.hasMore);
+
+                // Join Socket Room
+                if (socket) {
+                    socket.emit('join_private_chat', cid);
                 }
 
-            } catch (error) {
-                console.error("Chat init failed:", error);
+            } catch (err) {
+                console.error("Chat init error:", err);
+                setError("Failed to load chat");
             } finally {
                 setIsLoading(false);
             }
         };
+
         initChat();
-    }, [username, currentUser]);
+    }, [username, currentUser, socket]);
 
+    // 2. Real-time Listeners
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (!socket || !conversationId) return;
 
+        const handleReceive = (msg: Message) => {
+            // Check if this message belongs to current chat
+            if (msg.conversation_id !== conversationId) return;
+
+            const isMe = msg.sender_id === currentUser?.id;
+
+            const newUIMsg: UIMessage = {
+                id: msg.message_id,
+                text: msg.content,
+                sender: isMe ? 'me' : 'them',
+                time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                status: 'read',
+                rawDate: new Date(msg.sent_at)
+            };
+
+            setMessages(prev => {
+                // Deduplicate
+                if (prev.some(m => m.id === newUIMsg.id)) return prev;
+                return [...prev, newUIMsg];
+            });
+
+            // Scroll to bottom if near bottom
+            // messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        };
+
+        socket.on('receive_private_message', handleReceive);
+
+        return () => {
+            socket.off('receive_private_message', handleReceive);
+        };
+    }, [socket, conversationId, currentUser?.id]);
+
+    // 3. Scroll to Bottom on Load / Receive
     useEffect(() => {
-        const handleClick = () => setIsMenuOpen(false);
-        if (isMenuOpen) window.addEventListener('click', handleClick);
-        return () => window.removeEventListener('click', handleClick);
-    }, [isMenuOpen]);
+        if (!isLoadingMore) {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, isLoadingMore]);
 
-    // TODO: Implement WebSocket sending. For now, optimistic RESTish update.
+    // 4. Send Message
     const handleSend = () => {
-        if (!newMessage.trim() || !currentUser) return;
+        if (!newMessage.trim() || !currentUser || !conversationId || !socket) return;
 
-        // Optimistic Update
-        const tempMsg = {
-            id: Date.now(),
-            text: newMessage,
+        const content = newMessage;
+        setNewMessage(''); // Clear input immediately
+
+        // Optimistic UI Update
+        const tempId = `temp-${Date.now()}`;
+        const tempMsg: UIMessage = {
+            id: tempId,
+            text: content,
             sender: 'me',
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'sending'
+            status: 'sending',
+            rawDate: new Date()
         };
-        setMessages(prev => [...prev, tempMsg]);
-        setNewMessage('');
 
-        // In a real app with WS, we emit event here.
-        // socket.emit('sendMessage', { conversationId, content: newMessage });
-        console.warn("WebSocket sending not implemented yet. Message is local only.");
+        setMessages(prev => [...prev, tempMsg]);
+
+        // Emit Socket Event
+        socket.emit('send_private_message', {
+            conversation_id: conversationId,
+            sender_id: currentUser.id,
+            content: content
+        });
+
+        // Note: The 'receive_private_message' event (showing confirmation) 
+        // will handle replacing this or confirming it if the backend echoes back.
+        // For now we rely on the echo.
+    };
+
+    // 5. Load More (Infinite Scroll)
+    const handleScroll = async () => {
+        if (!messagesContainerRef.current || !hasMore || isLoadingMore || !conversationId) return;
+
+        const { scrollTop } = messagesContainerRef.current;
+        if (scrollTop === 0) {
+            setIsLoadingMore(true);
+            const oldestMsg = messages[0];
+
+            try {
+                // Fetch older messages
+                const history = await chatApi.getPrivateMessages(conversationId, 50, oldestMsg.rawDate.toISOString());
+
+                if (history.messages.length > 0) {
+                    const mapped = history.messages.map((msg: Message) => ({
+                        id: msg.message_id,
+                        text: msg.content,
+                        sender: msg.sender_id === currentUser?.id ? 'me' : 'them',
+                        time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        status: 'read',
+                        rawDate: new Date(msg.sent_at)
+                    }) as UIMessage);
+
+                    mapped.sort((a, b) => a.rawDate.getTime() - b.rawDate.getTime());
+
+                    setMessages(prev => [...mapped, ...prev]);
+                    setHasMore(history.hasMore);
+
+                    // Maintain scroll position (rough adjustment)
+                    if (messagesContainerRef.current) {
+                        // This is tricky without exact heights, but simple method:
+                        // User will jump slightly, standard for simple implementation
+                        messagesContainerRef.current.scrollTop = 50;
+                    }
+                } else {
+                    setHasMore(false);
+                }
+            } catch (err) {
+                console.error("Failed to load older messages", err);
+            } finally {
+                setIsLoadingMore(false);
+            }
+        }
     };
 
     const handleMenuAction = (action: string) => {
@@ -116,6 +237,15 @@ const ChatPage = () => {
         return (
             <div style={{ minHeight: '100vh', width: '100%', backgroundColor: '#050505', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white gap-4">
+                <p className="text-xl text-red-500">{error}</p>
+                <button onClick={() => navigate('/chats')} className="text-[#d4af37] underline">Back to Chats</button>
             </div>
         );
     }
@@ -312,15 +442,26 @@ const ChatPage = () => {
                 </header>
 
                 {/* --- MESSAGES AREA --- */}
-                <main className="no-scrollbar" style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: '2rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1.5rem',
-                    backgroundColor: 'transparent'
-                }}>
+                <main
+                    className="no-scrollbar"
+                    ref={messagesContainerRef}
+                    onScroll={handleScroll}
+                    style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '2rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.5rem',
+                        backgroundColor: 'transparent'
+                    }}
+                >
+                    {isLoadingMore && (
+                        <div className="flex justify-center w-full py-4">
+                            <Loader2 className="w-6 h-6 animate-spin text-[#d4af37]" />
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
                         <span style={{
                             fontSize: '0.75rem', fontWeight: 'bold', color: '#a1a1aa',
@@ -370,7 +511,7 @@ const ChatPage = () => {
                                         </span>
                                         {isMe && (
                                             <span>
-                                                {msg.status === 'read' ? <CheckCheck size={14} /> : <Check size={14} />}
+                                                {msg.status === 'read' ? <CheckCheck size={14} /> : (msg.status === 'sent' ? <Check size={14} /> : null)}
                                             </span>
                                         )}
                                     </div>
@@ -400,7 +541,7 @@ const ChatPage = () => {
                                     width: '100%',
                                     backgroundColor: 'rgba(26, 26, 26, 0.8)',
                                     border: '1px solid rgba(255, 255, 255, 0.1)',
-                                    borderRadius: '999px',
+                                    borderRadius: '9999px',
                                     padding: '0.9rem 1.5rem',
                                     color: 'white',
                                     fontSize: '1rem',

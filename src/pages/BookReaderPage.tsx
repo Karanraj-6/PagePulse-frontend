@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import HTMLFlipBook from 'react-pageflip';
 import {
     ArrowLeft,
     UserPlus,
     MessageSquare,
     X,
     Menu,
-    ChevronLeft,
-    ChevronRight,
     Send,
     Users,
     Search,
@@ -17,16 +14,11 @@ import {
     Loader2
 } from 'lucide-react';
 
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationNext,
-    PaginationPrevious,
-} from "../components/ui/pagination";
-
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { booksApi, type Book } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
+import BookViewer from '../components/BookViewer';
 
 // --- TYPES ---
 interface ChatMessage {
@@ -36,7 +28,50 @@ interface ChatMessage {
     isMe: boolean;
     avatar: string | null;
     page: number;
+    isFriendsOnly?: boolean;  // Added flag
 }
+
+// ... existing code ...
+
+<div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    {messages
+        .filter(msg => {
+            // Filtering Logic:
+            // If "Friends Only" mode is ON: Show ONLY messages tagged isFriendsOnly.
+            // If "Friends Only" mode is OFF ("Everyone"): Show ONLY public messages (not tagged isFriendsOnly).
+            // (Unless sender is ME, then I usually see what I sent in the context I sent it - assumes I sent with correct flag)
+            if (isFriendsOnly) {
+                return msg.isFriendsOnly;
+            } else {
+                return !msg.isFriendsOnly;
+            }
+        })
+        .length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
+            {isFriendsOnly ? "No friends-only messages." : "No public messages."}
+        </div>
+    ) : (
+        messages
+            .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
+            .map((msg) => (
+                <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                    {!msg.isMe && (
+                        <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
+                            <AvatarImage src={msg.avatar || undefined} />
+                            <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                            {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
+                            <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
+                        </div>
+                        <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
+                    </div>
+                </div>
+            ))
+    )}
+</div>
 
 // --- MOCK DATA ---
 const ACTIVE_READERS = [
@@ -95,6 +130,7 @@ const BookReaderPage = () => {
     // Chat State
     const [chatMessage, setChatMessage] = useState('');
     const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT_MESSAGES);
+    const [isFriendsOnly, setIsFriendsOnly] = useState(false);
 
     // Notifications
     const [unreadCount, setUnreadCount] = useState(0);
@@ -151,7 +187,7 @@ const BookReaderPage = () => {
         };
     }, []);
 
-    // 1. Initial Fetch - FIXED dependency array
+    // 1. Initial Fetch
     useEffect(() => {
         const fetchData = async () => {
             if (!id) return;
@@ -247,7 +283,8 @@ const BookReaderPage = () => {
 
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [id]); // <-- REMOVED pollIngestionStatus from dependencies!
+    }, [id]);
+
     // 2. Load Specific Batch Logic
     const loadBatch = async (offsetIndex: number) => {
         if (!id || isFetchingBatch) return;
@@ -259,7 +296,6 @@ const BookReaderPage = () => {
         try {
             const data = await booksApi.getPages(id, BATCH_SIZE, offsetIndex);
 
-            // Handle 202 = still ingesting, skip this batch for now
             if (data._httpStatus === 202 || data.status === 'processing' || data.status === 'started') {
                 console.log('[loadBatch] Book still ingesting, skipping batch load');
                 return;
@@ -327,13 +363,98 @@ const BookReaderPage = () => {
         bookRef.current?.pageFlip().flip(targetIndex);
     };
 
+    // --- SOCKET.IO CHAT INTEGRATION ---
+    const { user } = useAuth();
+    const { socket } = useSocket();
+
+    // Fix: Separate connection logic from listeners to prevent re-connection loops
+    useEffect(() => {
+        if (!socket || !id || !user) return;
+
+        // Join Room ONLY when ID or Socket changes
+        socket.emit('join_book_room', { bookId: id, userId: user.id });
+        console.log(`Joined book room: ${id}`);
+
+        return () => {
+            // Leave room on unmount or id change
+            socket.emit('leave_book_room', { bookId: id, userId: user.id });
+        };
+    }, [socket, id, user?.id]); // Minimal dependencies
+
+    // Listeners Effect
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleReadingMessage = (msg: { sender: string; content: string; time: string; isFriendsOnly?: boolean }) => {
+            const newMsg: ChatMessage = {
+                id: Date.now(),
+                user: msg.sender,
+                text: msg.content,
+                isMe: false,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`,
+                page: currentSpread,
+                isFriendsOnly: msg.isFriendsOnly // Capture the flag
+            };
+
+            if (msg.sender === user?.username) return;
+
+            setMessages(prev => [...prev, newMsg]);
+
+            // Only notify if looking at relevant view? 
+            // Simplified: Notify if chat is closed.
+            if (!showChat) {
+                setUnreadCount(prev => prev + 1);
+                if (isPopupEnabled) {
+                    setPopupMessage(newMsg);
+                    setTimeout(() => { setPopupMessage(null); }, 3000);
+                }
+            }
+        };
+
+        const handleUserJoined = (data: { userId: string, count: number }) => {
+            console.log("User joined book:", data);
+        };
+
+        socket.on('reading_message', handleReadingMessage);
+        socket.on('user_joined_book', handleUserJoined);
+
+        return () => {
+            socket.off('reading_message', handleReadingMessage);
+            socket.off('user_joined_book', handleUserJoined);
+        };
+    }, [socket, user?.username, showChat, isPopupEnabled, currentSpread]);
+    // Dependencies here just affect closure values for incoming msg handling (like showChat state)
+
+
     // Chat Handlers
     const handleSendMessage = () => {
-        if (!chatMessage.trim()) return;
-        const newMessage: ChatMessage = { id: Date.now(), user: 'You', text: chatMessage, isMe: true, avatar: null, page: currentSpread };
+        if (!chatMessage.trim() || !user || !socket) return;
+
+        const content = chatMessage;
+
+        // Optimistic
+        const newMessage: ChatMessage = {
+            id: Date.now(),
+            user: 'You',
+            text: content,
+            isMe: true,
+            avatar: null,
+            page: currentSpread,
+            isFriendsOnly: isFriendsOnly // Set flag on optimistic message
+        };
         setMessages(prev => [...prev, newMessage]);
         setChatMessage('');
         setTimeout(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, 100);
+
+        // Emit
+        socket.emit('reading_message', {
+            conversationId: `book_${id}`,
+            sender: user.username,
+            senderId: user.id, // Needed for backend friend lookup
+            content: content,
+            // Flag for friends only (Backend needs to support this)
+            isFriendsOnly: isFriendsOnly
+        });
     };
 
     const handleIncomingMessage = (msg: ChatMessage) => {
@@ -348,21 +469,6 @@ const BookReaderPage = () => {
     };
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            handleIncomingMessage({
-                id: Date.now(),
-                user: "Alice",
-                text: "Hey! Are you seeing the new popup feature? 😎",
-                isMe: false,
-                avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
-                page: currentSpread
-            });
-        }, 3000);
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    useEffect(() => {
         if (showChat) {
             setUnreadCount(0);
             setPopupMessage(null);
@@ -373,75 +479,6 @@ const BookReaderPage = () => {
         setShowInviteModal(false);
         setInviteMode('direct');
     };
-
-    // Loading Page Component
-    const LoadingPage = ({ number }: { number: number }) => (
-        <div className="h-full w-full bg-[#fdfbf7] border-r border-[#e3d5c6] flex flex-col items-center justify-center relative">
-            <Loader2 className="w-8 h-8 text-[#d4af37] animate-spin mb-4" />
-            <span className="text-zinc-400 text-xs font-serif tracking-widest">LOADING PAGE {number}</span>
-            <div className="absolute bottom-4 left-0 right-0 text-center text-[#a8a8a8] text-[10px]">{number}</div>
-        </div>
-    );
-
-    // Generate iframe content
-    const generateIframeContent = useCallback((htmlChunk: string) => `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            margin: 0; 
-            padding: 30px 35px; 
-            font-family: 'Merriweather', Georgia, serif; 
-            font-size: 12px;
-            line-height: 1.7;
-            color: #2c2c2c; 
-            background: #fdfbf7; 
-            height: 100vh; 
-            overflow: hidden;
-        }
-        h1, h2 { display: none !important; }
-        h3, h4, h5, h6 { color: #333; margin-top: 1em; margin-bottom: 0.4em; font-size: 1.1em; }
-        p { 
-            text-align: justify; 
-            margin-bottom: 0.9em; 
-            text-indent: 1.2em;
-        }
-        p:first-of-type { text-indent: 0; }
-        p:first-of-type::first-letter {
-            font-size: 2.5em;
-            float: left;
-            line-height: 0.8;
-            padding-right: 6px;
-            padding-top: 3px;
-            color: #8B7355;
-        }
-        img { 
-            max-width: 90%; 
-            max-height: 150px; 
-            display: block; 
-            margin: 10px auto; 
-            border-radius: 4px;
-            object-fit: contain;
-        }
-       
-        blockquote {
-            border-left: 2px solid #d4af37;
-            margin: 1em 0;
-            padding: 0.3em 1em;
-            font-style: italic;
-            color: #555;
-            font-size: 0.95em;
-        }
-        em, i { font-style: italic; }
-        strong, b { font-weight: 700; }
-        hr { border: none; height: 1px; background: linear-gradient(to right, transparent, #ccc, transparent); margin: 1.5em 0; }
-    </style>
-</head>
-<body>${htmlChunk}</body>
-</html>`, []);
 
     // Memoize sidebar items
     const sidebarItems = useMemo(() => {
@@ -455,33 +492,11 @@ const BookReaderPage = () => {
         return items;
     }, [totalPagesCount]);
 
-    // Memoize page contents
-    const memoizedPageContents = useMemo(() => {
-        return pages.map((htmlChunk) => htmlChunk ? generateIframeContent(htmlChunk) : null);
-    }, [pages, generateIframeContent]);
-
-    // LOADING STATE
-    if (isLoading) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]" />
-            </div>
-        );
-    }
-
-    // INGESTION STATE
-    if (isIngesting) {
-        return (
-            <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center text-white">
-                <Loader2 className="w-16 h-16 text-[#d4af37] animate-spin mb-6" />
-                <h2 className="text-2xl font-bold mb-2">Preparing Your Book</h2>
-                <p className="text-zinc-400 text-center max-w-md">{ingestionMessage}</p>
-                <p className="text-zinc-500 text-sm mt-4">This may take a minute for first-time reads...</p>
-            </div>
-        );
-    }
-
     const totalSpreads = Math.ceil((pages.length) / 2);
+
+    // Callbacks for BookViewer
+    const handleNext = useCallback(() => bookRef.current?.pageFlip().flipNext(), []);
+    const handlePrev = useCallback(() => bookRef.current?.pageFlip().flipPrev(), []);
 
     return (
         <div className="min-h-screen w-full bg-[#050505] flex flex-col font-sans text-white overflow-hidden selection:bg-[#d4af37] selection:text-black">
@@ -632,152 +647,121 @@ const BookReaderPage = () => {
                     </div>
                 </div>
 
-                {/* READER AREA */}
-                <main className="flex-1 relative flex flex-col items-center justify-center p-4 lg:p-8 overflow-hidden">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#d4af37]/5 blur-[120px] rounded-full pointer-events-none"></div>
-                    <div className="relative z-10 w-full flex justify-center items-center h-[85vh]">
-                        {pages.length > 0 && (
-                            <HTMLFlipBook
-                                width={400}
-                                height={600}
-                                size="fixed"
-                                minWidth={300}
-                                maxWidth={500}
-                                minHeight={400}
-                                maxHeight={800}
-                                maxShadowOpacity={0.5}
-                                showCover={true}
-                                mobileScrollSupport={true}
-                                className="demo-book shadow-2xl"
-                                ref={bookRef}
-                                onFlip={onFlip}
-                            >
-                                {memoizedPageContents.map((iframeContent, index) => (
-                                    <div key={index} className="page bg-[#fdfbf7] h-full border-r border-[#e3d5c6] relative overflow-hidden">
-                                        <div className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing" title="Drag to Flip" style={{ background: 'transparent' }} />
+                {/* BOOK VIEWER COMPONENT */}
+                <BookViewer
+                    pages={pages}
+                    isLoading={isLoading}
+                    isIngesting={isIngesting}
+                    isFetchingBatch={isFetchingBatch}
+                    ingestionMessage={ingestionMessage}
+                    currentSpread={currentSpread}
+                    totalSpreads={totalSpreads}
+                    onFlip={onFlip}
+                    onPrev={handlePrev}
+                    onNext={handleNext}
+                    bookRef={bookRef}
+                />
+            </div>
 
-                                        {iframeContent ? (
-                                            <>
-                                                <iframe srcDoc={iframeContent} title={`Page ${index}`} className="w-full h-full border-none z-10 relative pointer-events-none" style={{ pointerEvents: 'none' }} />
-                                                {index > 0 && <div className="absolute bottom-4 left-0 right-0 text-center z-10 text-[#a8a8a8] text-[10px] font-serif uppercase tracking-widest">{index}</div>}
-                                            </>
-                                        ) : (
-                                            <LoadingPage number={index} />
-                                        )}
+            {/* CHAT SIDEBAR */}
+            {showChat && (
+                <aside style={{ width: '350px', backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 50, boxShadow: '-5px 0 20px rgba(0,0,0,0.5)' }}>
+                    <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ fontWeight: 'bold', color: '#fff', margin: 0, fontSize: '1.1rem' }}>Live Chat</h3>
+                        <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X className="w-5 h-5 hover:text-white" /></button>
+                    </div>
+                    <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {messages.length === 0 ? <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>No messages yet.</div> : messages.map((msg) => (
+                            <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                                {!msg.isMe && (
+                                    <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
+                                        <AvatarImage src={msg.avatar || undefined} />
+                                        <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                )}
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                        {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
+                                        <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
                                     </div>
-                                ))}
-                            </HTMLFlipBook>
+                                    <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', color: '#666', fontSize: '0.8rem' }}>
+                            <button onClick={() => setIsPopupEnabled(!isPopupEnabled)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: isPopupEnabled ? '#d4af37' : '#666' }}>
+                                {isPopupEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
+                                <span>Popups {isPopupEnabled ? 'On' : 'Off'}</span>
+                            </button>
+
+                            <button
+                                onClick={() => setIsFriendsOnly(!isFriendsOnly)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: isFriendsOnly ? '#d4af37' : '#666',
+                                    fontWeight: isFriendsOnly ? 'bold' : 'normal'
+                                }}
+                            >
+                                <Users className="w-3 h-3" />
+                                <span>{isFriendsOnly ? 'Friends Only' : 'Everyone'}</span>
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#18181b', padding: '8px', borderRadius: '24px', border: '1px solid #333' }}>
+                            <input style={{ flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.9rem', paddingLeft: '8px' }} placeholder={isFriendsOnly ? "Message friends..." : "Type a message..."} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+                            <button onClick={handleSendMessage} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#d4af37', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', transition: 'transform 0.1s' }}><Send className="w-4 h-4" /></button>
+                        </div>
+                    </div>
+                </aside>
+            )}
+
+            {/* INVITE MODAL */}
+            {showInviteModal && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>{inviteMode === 'direct' ? 'Invite Friend' : 'Select Friend'}</h3>
+                            <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center' }}><X className="w-6 h-6 hover:text-white transition-colors" /></button>
+                        </div>
+                        {inviteMode === 'direct' && (
+                            <>
+                                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '25px', lineHeight: '1.5' }}>Share this reading session by entering a username or email directly.</p>
+                                <div style={{ position: 'relative', marginBottom: '25px' }}>
+                                    <input type="text" placeholder="Enter username or email..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '14px', paddingRight: '50px', color: '#fff', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.currentTarget.style.borderColor = '#d4af37'} onBlur={(e) => e.currentTarget.style.borderColor = '#333'} />
+                                    <button onClick={() => setInviteMode('friends')} title="Select from Friends List" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#d4af37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}><Users className="w-5 h-5 hover:text-white transition-colors" /></button>
+                                </div>
+                                <div style={{ display: 'flex', gap: '15px' }}>
+                                    <button onClick={handleCloseModal} style={{ flex: 1, backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: 'background 0.2s' }}>Send Invite</button>
+                                    <button onClick={handleCloseModal} style={{ padding: '14px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
+                                </div>
+                            </>
+                        )}
+                        {inviteMode === 'friends' && (
+                            <>
+                                <div style={{ position: 'relative', marginBottom: '20px' }}>
+                                    <input type="text" placeholder="Search friends..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '10px 10px 10px 40px', color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                                    <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                                </div>
+                                <div style={{ flex: 1, maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {FRIENDS_LIST.map(friend => (
+                                        <div key={friend.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '8px', border: '1px solid #222', backgroundColor: '#111' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <Avatar className="w-10 h-10 border border-white/10"><AvatarImage src={friend.img} /><AvatarFallback>{friend.name[0]}</AvatarFallback></Avatar>
+                                                <div><p style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.name}</p><p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>{friend.username}</p></div>
+                                            </div>
+                                            <button onClick={handleCloseModal} style={{ backgroundColor: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>Invite</button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => setInviteMode('direct')} style={{ width: '100%', padding: '12px', backgroundColor: '#222', color: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>Back to Manual Entry</button>
+                            </>
                         )}
                     </div>
-
-                    {isFetchingBatch && (
-                        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-[#000]/80 text-[#d4af37] px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 border border-[#d4af37]/30 z-50">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            Loading next chapter...
-                        </div>
-                    )}
-
-                    <button onClick={() => bookRef.current?.pageFlip().flipPrev()} className="absolute left-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 hover:bg-[#d4af37] text-white hover:text-black flex items-center justify-center transition-all z-20"><ChevronLeft className="w-6 h-6" /></button>
-                    <button onClick={() => bookRef.current?.pageFlip().flipNext()} className="absolute right-6 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/5 hover:bg-[#d4af37] text-white hover:text-black flex items-center justify-center transition-all z-20"><ChevronRight className="w-6 h-6" /></button>
-
-                    <div className="absolute bottom-6 z-20">
-                        <Pagination>
-                            <PaginationContent>
-                                <PaginationItem><PaginationPrevious onClick={(e) => { e.preventDefault(); bookRef.current?.pageFlip().flipPrev(); }} className="cursor-pointer text-zinc-400 hover:text-[#d4af37]" /></PaginationItem>
-                                <PaginationItem><span className="text-zinc-500 text-sm px-4">Spread <span className="text-[#d4af37]">{currentSpread}</span> of {totalSpreads}</span></PaginationItem>
-                                <PaginationItem><PaginationNext onClick={(e) => { e.preventDefault(); bookRef.current?.pageFlip().flipNext(); }} className="cursor-pointer text-zinc-400 hover:text-[#d4af37]" /></PaginationItem>
-                            </PaginationContent>
-                        </Pagination>
-                    </div>
-                </main>
-
-                {/* CHAT SIDEBAR */}
-                {showChat && (
-                    <aside style={{ width: '350px', backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 50, boxShadow: '-5px 0 20px rgba(0,0,0,0.5)' }}>
-                        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ fontWeight: 'bold', color: '#fff', margin: 0, fontSize: '1.1rem' }}>Live Chat</h3>
-                            <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X className="w-5 h-5 hover:text-white" /></button>
-                        </div>
-                        <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                            {messages.length === 0 ? <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>No messages yet.</div> : messages.map((msg) => (
-                                <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                                    {!msg.isMe && (
-                                        <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
-                                            <AvatarImage src={msg.avatar || undefined} />
-                                            <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                    )}
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                                            {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
-                                            <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
-                                        </div>
-                                        <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#666', fontSize: '0.8rem' }}>
-                                <button onClick={() => setIsPopupEnabled(!isPopupEnabled)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: isPopupEnabled ? '#d4af37' : '#666' }}>
-                                    {isPopupEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
-                                    <span>Popups {isPopupEnabled ? 'On' : 'Off'}</span>
-                                </button>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#18181b', padding: '8px', borderRadius: '24px', border: '1px solid #333' }}>
-                                <input style={{ flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.9rem', paddingLeft: '8px' }} placeholder="Type a message..." value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-                                <button onClick={handleSendMessage} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#d4af37', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', transition: 'transform 0.1s' }}><Send className="w-4 h-4" /></button>
-                            </div>
-                        </div>
-                    </aside>
-                )}
-
-                {/* INVITE MODAL */}
-                {showInviteModal && (
-                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                        <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>{inviteMode === 'direct' ? 'Invite Friend' : 'Select Friend'}</h3>
-                                <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center' }}><X className="w-6 h-6 hover:text-white transition-colors" /></button>
-                            </div>
-                            {inviteMode === 'direct' && (
-                                <>
-                                    <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '25px', lineHeight: '1.5' }}>Share this reading session by entering a username or email directly.</p>
-                                    <div style={{ position: 'relative', marginBottom: '25px' }}>
-                                        <input type="text" placeholder="Enter username or email..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '14px', paddingRight: '50px', color: '#fff', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.currentTarget.style.borderColor = '#d4af37'} onBlur={(e) => e.currentTarget.style.borderColor = '#333'} />
-                                        <button onClick={() => setInviteMode('friends')} title="Select from Friends List" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#d4af37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}><Users className="w-5 h-5 hover:text-white transition-colors" /></button>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '15px' }}>
-                                        <button onClick={handleCloseModal} style={{ flex: 1, backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: 'background 0.2s' }}>Send Invite</button>
-                                        <button onClick={handleCloseModal} style={{ padding: '14px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
-                                    </div>
-                                </>
-                            )}
-                            {inviteMode === 'friends' && (
-                                <>
-                                    <div style={{ position: 'relative', marginBottom: '20px' }}>
-                                        <input type="text" placeholder="Search friends..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '10px 10px 10px 40px', color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                                        <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                                    </div>
-                                    <div style={{ flex: 1, maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        {FRIENDS_LIST.map(friend => (
-                                            <div key={friend.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '8px', border: '1px solid #222', backgroundColor: '#111' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <Avatar className="w-10 h-10 border border-white/10"><AvatarImage src={friend.img} /><AvatarFallback>{friend.name[0]}</AvatarFallback></Avatar>
-                                                    <div><p style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.name}</p><p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>{friend.username}</p></div>
-                                                </div>
-                                                <button onClick={handleCloseModal} style={{ backgroundColor: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>Invite</button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={() => setInviteMode('direct')} style={{ width: '100%', padding: '12px', backgroundColor: '#222', color: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>Back to Manual Entry</button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -85,12 +85,12 @@ async function apiRequest<T>(endpoint: string, options: ApiOptions = {}): Promis
   }
 
   const data = await response.json();
-  
+
   // Only add _httpStatus if data is an object (not array)
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     return { ...data, _httpStatus: response.status } as T;
   }
-  
+
   return data as T;
 }
 
@@ -107,29 +107,29 @@ const chatRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
 // Auth Service
 export const authApi = {
   register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/auth/register', { method: 'POST', body: data }),
-  
+
   login: async (email: string, password: string) => {
-    const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/auth/login', { 
-      method: 'POST', 
-      body: { username: email, password } 
+    const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/auth/login', {
+      method: 'POST',
+      body: { username: email, password }
     });
-    
+
     if (response.token) {
       setAuthToken(response.token);
     }
-    
+
     const user: User = {
       id: response.user.id,
       username: response.user.name,
       email: response.user.email,
       avatar: response.user.avatar || undefined,
     };
-    
+
     return { user, token: response.token };
   },
 
   getCurrentUser: () => authRequest<User>('/auth/me'),
-  
+
   logout: () => {
     clearAuthToken();
   },
@@ -181,15 +181,15 @@ export const booksApi = {
   getCategories: () => bookRequest<string[]>('/categories'),
 
   trackBook: (book: Book) =>
-  bookRequest<{ success: boolean }>(`/books/${book.id}/track`, {
-    method: 'POST',
-    body: {
-      title: book.title,
-      authors: book.authors,
-      formats: book.formats,
-      download_count: book.download_count
-    }
-  }),
+    bookRequest<{ success: boolean }>(`/books/${book.id}/track`, {
+      method: 'POST',
+      body: {
+        title: book.title,
+        authors: book.authors,
+        formats: book.formats,
+        download_count: book.download_count
+      }
+    }),
 };
 
 // Chat Service
@@ -206,47 +206,17 @@ export const chatApi = {
       body: { myId, bookId, friendUsername },
     }),
 
-  getConversations: () => chatRequest<Conversation[]>('/chats'),
-  getMessages: (conversationId: string) => chatRequest<Message[]>(`/chats/${conversationId}/messages`),
+  // [UPDATED] Get list of conversations for a user
+  getConversations: (userId: string) => chatRequest<ConversationsResponse>(`/conversations/${userId}`),
+
+  // [UPDATED] Get message history with pagination
+  getPrivateMessages: (conversationId: string, limit: number = 50, before?: string) =>
+    chatRequest<MessageHistoryResponse>(`/private/${conversationId}/messages`, {
+      params: { limit, before },
+    }),
 };
 
-// User API
-export const userApi = {
-  getProfile: (userId: string) => authRequest<User>(`/users/${userId}`),
-  
-  updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
-  
-  uploadAvatar: async (file: File): Promise<{ success: boolean; avatarUrl: string }> => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-
-    const formData = new FormData();
-    formData.append('avatar', file);
-
-    const response = await fetch(`${AUTH_URL}/users/avatar`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      credentials: 'include',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || error.error || 'Avatar upload failed');
-    }
-
-    return response.json();
-  },
-};
-
-// Notification API (Mock)
-export const notificationApi = {
-  getUpdates: () => Promise.resolve(mockNotifications),
-};
+// ... (User API and Notification API remain unchanged) ...
 
 // Types
 export interface User {
@@ -285,6 +255,7 @@ export interface Book {
   media_type: string;
   formats: Record<string, string>;
   download_count: number;
+  summaries?: string[]; // Added based on usage in BookDetailPage
 }
 
 export interface BookPage {
@@ -313,22 +284,37 @@ export interface BookPagesResponse {
   pages: BookPage[];
 }
 
+// [UPDATED] Matches API Response
 export interface Conversation {
-  id: string;
-  conversation_id?: string;
-  participant?: User;
-  lastMessage?: Message;
-  updatedAt?: string;
+  conversation_id: string; // Changed from id
+  type: 'private' | 'reading';
+  created_at: string;
+  last_message?: {
+    message_id: string;
+    sender_id: string;
+    content: string;
+    sent_at: string;
+  };
+  other_participants: string[];
+  // Helper for UI (computed)
+  participantDetails?: User;
+}
+
+export interface ConversationsResponse {
+  conversations: Conversation[];
 }
 
 export interface Message {
-  id: string;
-  message_id?: string;
+  message_id: string; // Changed from id
+  conversation_id: string;
+  sender_id: string; // Changed from senderId
   content: string;
-  senderId: string;
-  sender_id?: string;
-  createdAt: string;
-  sent_at?: string;
+  sent_at: string; // Changed from createdAt
+}
+
+export interface MessageHistoryResponse {
+  messages: Message[];
+  hasMore: boolean;
 }
 
 export interface Notification {
@@ -338,6 +324,44 @@ export interface Notification {
   time: string;
   read: boolean;
 }
+
+// User API
+export const userApi = {
+  getProfile: (userId: string) => authRequest<User>(`/users/${userId}`),
+
+  updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
+
+  uploadAvatar: async (file: File): Promise<{ success: boolean; avatarUrl: string }> => {
+    const token = getAuthToken();
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const response = await fetch(`${AUTH_URL}/users/avatar`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      credentials: 'include',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.message || error.error || 'Avatar upload failed');
+    }
+
+    return response.json();
+  },
+};
+
+// Notification API (Mock)
+export const notificationApi = {
+  getUpdates: () => Promise.resolve(mockNotifications),
+};
 
 export default {
   auth: authApi,

@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Pages
@@ -21,71 +22,73 @@ function App() {
   return (
     <div className="relative z-10">
       <AuthProvider>
-        <Router>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/auth" element={<AuthPage />} />
+        <SocketProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/auth" element={<AuthPage />} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute>
-                  <HomePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/search"
-              element={
-                <ProtectedRoute>
-                  <SearchPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/books/:id/:slug"
-              element={
-                <ProtectedRoute>
-                  <BookDetailPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/books/:id/:slug/read"
-              element={
-                <ProtectedRoute>
-                  <BookReaderPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/chats"
-              element={
-                <ProtectedRoute>
-                  <ChatsListPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/chats/:username"
-              element={
-                <ProtectedRoute>
-                  <ChatPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </Router>
+              {/* Protected Routes */}
+              <Route
+                path="/home"
+                element={
+                  <ProtectedRoute>
+                    <HomePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/search"
+                element={
+                  <ProtectedRoute>
+                    <SearchPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/books/:id/:slug"
+                element={
+                  <ProtectedRoute>
+                    <BookDetailPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/books/:id/:slug/read"
+                element={
+                  <ProtectedRoute>
+                    <BookReaderPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chats"
+                element={
+                  <ProtectedRoute>
+                    <ChatsListPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/chats/:username"
+                element={
+                  <ProtectedRoute>
+                    <ChatPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <ProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </Router>
+        </SocketProvider>
       </AuthProvider>
     </div>
   );
