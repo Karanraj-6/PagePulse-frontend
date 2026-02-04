@@ -33,45 +33,7 @@ interface ChatMessage {
 
 // ... existing code ...
 
-<div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-    {messages
-        .filter(msg => {
-            // Filtering Logic:
-            // If "Friends Only" mode is ON: Show ONLY messages tagged isFriendsOnly.
-            // If "Friends Only" mode is OFF ("Everyone"): Show ONLY public messages (not tagged isFriendsOnly).
-            // (Unless sender is ME, then I usually see what I sent in the context I sent it - assumes I sent with correct flag)
-            if (isFriendsOnly) {
-                return msg.isFriendsOnly;
-            } else {
-                return !msg.isFriendsOnly;
-            }
-        })
-        .length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-            {isFriendsOnly ? "No friends-only messages." : "No public messages."}
-        </div>
-    ) : (
-        messages
-            .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
-            .map((msg) => (
-                <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                    {!msg.isMe && (
-                        <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
-                            <AvatarImage src={msg.avatar || undefined} />
-                            <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    )}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                            {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
-                            <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
-                        </div>
-                        <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
-                    </div>
-                </div>
-            ))
-    )}
-</div>
+
 
 // --- MOCK DATA ---
 const ACTIVE_READERS = [
@@ -129,8 +91,9 @@ const BookReaderPage = () => {
 
     // Chat State
     const [chatMessage, setChatMessage] = useState('');
-    const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_CHAT_MESSAGES);
-    const [isFriendsOnly, setIsFriendsOnly] = useState(false);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [showMenu, setShowMenu] = useState(false); // Mobile menu
+    const [isFriendsOnly, setIsFriendsOnly] = useState(false); // New Toggle State
 
     // Notifications
     const [unreadCount, setUnreadCount] = useState(0);
@@ -671,23 +634,33 @@ const BookReaderPage = () => {
                         <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X className="w-5 h-5 hover:text-white" /></button>
                     </div>
                     <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {messages.length === 0 ? <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>No messages yet.</div> : messages.map((msg) => (
-                            <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                                {!msg.isMe && (
-                                    <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
-                                        <AvatarImage src={msg.avatar || undefined} />
-                                        <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                )}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                                        {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
-                                        <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
-                                    </div>
-                                    <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
-                                </div>
+                        {messages
+                            .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
+                            .length === 0 ? (
+                            <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
+                                {isFriendsOnly ? "No friends-only messages." : "No public messages."}
                             </div>
-                        ))}
+                        ) : (
+                            messages
+                                .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
+                                .map((msg) => (
+                                    <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                                        {!msg.isMe && (
+                                            <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
+                                                <AvatarImage src={msg.avatar || undefined} />
+                                                <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                        )}
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                                {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
+                                                <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
+                                            </div>
+                                            <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
+                                        </div>
+                                    </div>
+                                ))
+                        )}
                     </div>
 
                     <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}>

@@ -480,8 +480,8 @@ class InfiniteGridMenu {
   constructor(canvas, items, onActiveItemChange, onMovementChange, onInit = null, scale = 1.0) {
     this.canvas = canvas;
     this.items = items || [];
-    this.onActiveItemChange = onActiveItemChange || (() => {});
-    this.onMovementChange = onMovementChange || (() => {});
+    this.onActiveItemChange = onActiveItemChange || (() => { });
+    this.onMovementChange = onMovementChange || (() => { });
     this.scaleFactor = scale;
     this.camera.position[2] = 3 * scale;
     this.#init(onInit);
@@ -545,7 +545,7 @@ class InfiniteGridMenu {
     this.discVAO = makeVertexArray(
       gl,
       [[makeBuffer(gl, this.discBuffers.vertices, gl.STATIC_DRAW), this.discLocations.aModelPosition, 3],
-       [makeBuffer(gl, this.discBuffers.uvs, gl.STATIC_DRAW), this.discLocations.aModelUvs, 2]],
+      [makeBuffer(gl, this.discBuffers.uvs, gl.STATIC_DRAW), this.discLocations.aModelUvs, 2]],
       this.discBuffers.indices
     );
 
@@ -587,6 +587,13 @@ class InfiniteGridMenu {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => resolve(img);
+            img.onerror = () => {
+              console.warn(`Failed to load image: ${item.image}`);
+              // Fallback to a placeholder or just resolve with the broken image (drawing it might fail but promise won't hang)
+              // Better: Create a fallback 1x1 pixel or keep it blank
+              img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='; // 1x1 transparent
+              resolve(img);
+            };
             img.src = item.image;
           })
       )
@@ -598,20 +605,20 @@ class InfiniteGridMenu {
 
         // --- NEW: RED DOT FOR UNREAD MESSAGES ---
         if (this.items[i].unread || this.items[i].hasNewMessage) {
-            ctx.beginPath();
-            // Draw circle at top-right corner of the cell
-            const dotX = x + cellSize * 0.85;
-            const dotY = y + cellSize * 0.15;
-            const dotRadius = cellSize * 0.08;
-            
-            ctx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
-            ctx.fillStyle = '#ef4444'; // Red color
-            ctx.fill();
-            
-            // White border for visibility
-            ctx.lineWidth = cellSize * 0.02;
-            ctx.strokeStyle = '#ffffff';
-            ctx.stroke();
+          ctx.beginPath();
+          // Draw circle at top-right corner of the cell
+          const dotX = x + cellSize * 0.85;
+          const dotY = y + cellSize * 0.15;
+          const dotRadius = cellSize * 0.08;
+
+          ctx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ef4444'; // Red color
+          ctx.fill();
+
+          // White border for visibility
+          ctx.lineWidth = cellSize * 0.02;
+          ctx.strokeStyle = '#ffffff';
+          ctx.stroke();
         }
       });
 
@@ -725,7 +732,7 @@ class InfiniteGridMenu {
 
     // Reset programmatic target if user interacts
     if (this.control.isPointerDown) {
-        this.targetItemIndex = null;
+      this.targetItemIndex = null;
     }
 
     if (isMoving !== this.movementActive) {
@@ -736,17 +743,17 @@ class InfiniteGridMenu {
     if (!this.control.isPointerDown) {
       // Logic for snapping (auto-scroll)
       let nearestVertexIndex;
-      
+
       // If we have a programmatic target (from search), find closest vertex for that item
       if (this.targetItemIndex !== null) {
-          nearestVertexIndex = this.#findNearestVertexIndexForItem(this.targetItemIndex);
+        nearestVertexIndex = this.#findNearestVertexIndexForItem(this.targetItemIndex);
       } else {
-          nearestVertexIndex = this.#findNearestVertexIndex();
+        nearestVertexIndex = this.#findNearestVertexIndex();
       }
 
       const itemIndex = nearestVertexIndex % Math.max(1, this.items.length);
       this.onActiveItemChange(itemIndex);
-      
+
       const snapDirection = vec3.normalize(vec3.create(), this.#getVertexWorldPosition(nearestVertexIndex));
       this.control.snapTargetDirection = snapDirection;
     } else {
@@ -777,26 +784,26 @@ class InfiniteGridMenu {
 
   // Find the specific vertex for an item that is closest to the front
   #findNearestVertexIndexForItem(targetItemIndex) {
-      const n = this.control.snapDirection;
-      const inversOrientation = quat.conjugate(quat.create(), this.control.orientation);
-      const nt = vec3.transformQuat(vec3.create(), n, inversOrientation);
-  
-      let maxD = -Infinity;
-      let nearestVertexIndex = 0;
-      
-      const itemCount = Math.max(1, this.items.length);
+    const n = this.control.snapDirection;
+    const inversOrientation = quat.conjugate(quat.create(), this.control.orientation);
+    const nt = vec3.transformQuat(vec3.create(), n, inversOrientation);
 
-      for (let i = 0; i < this.instancePositions.length; ++i) {
-        // Only consider vertices that map to our target item
-        if (i % itemCount === targetItemIndex) {
-            const d = vec3.dot(nt, this.instancePositions[i]);
-            if (d > maxD) {
-              maxD = d;
-              nearestVertexIndex = i;
-            }
+    let maxD = -Infinity;
+    let nearestVertexIndex = 0;
+
+    const itemCount = Math.max(1, this.items.length);
+
+    for (let i = 0; i < this.instancePositions.length; ++i) {
+      // Only consider vertices that map to our target item
+      if (i % itemCount === targetItemIndex) {
+        const d = vec3.dot(nt, this.instancePositions[i]);
+        if (d > maxD) {
+          maxD = d;
+          nearestVertexIndex = i;
         }
       }
-      return nearestVertexIndex;
+    }
+    return nearestVertexIndex;
   }
 
   #getVertexWorldPosition(index) {
@@ -857,9 +864,9 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
 
   // Watch for activeIndex prop changes (Search Sync)
   useEffect(() => {
-      if (sketchRef.current && activeIndex !== -1) {
-          sketchRef.current.scrollTo(activeIndex);
-      }
+    if (sketchRef.current && activeIndex !== -1) {
+      sketchRef.current.scrollTo(activeIndex);
+    }
   }, [activeIndex]);
 
   // Handle Clicking the PFP or Button
@@ -868,23 +875,23 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
 
     // Use useNavigate for internal routes
     if (activeItem.link && !activeItem.link.startsWith('http')) {
-        navigate(activeItem.link);
+      navigate(activeItem.link);
     } else if (activeItem.link) {
-        window.open(activeItem.link, '_blank');
+      window.open(activeItem.link, '_blank');
     }
   };
 
   const handleCanvasClick = () => {
-      if (!isMoving && activeItem) {
-          handleNavigation();
-      }
+    if (!isMoving && activeItem) {
+      handleNavigation();
+    }
   };
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas 
-        id="infinite-grid-menu-canvas" 
-        ref={canvasRef} 
+      <canvas
+        id="infinite-grid-menu-canvas"
+        ref={canvasRef}
         onClick={handleCanvasClick}
         style={{ cursor: isMoving ? 'grabbing' : 'pointer' }}
       />

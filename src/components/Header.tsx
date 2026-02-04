@@ -26,10 +26,21 @@ const Header = ({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const notificationRef = useRef<HTMLDivElement>(null);
 
+  // Helper to derive title from type
+  const getNotificationTitle = (type: Notification['type']) => {
+    switch (type) {
+      case 'friend_requested': return 'Friend Request';
+      case 'friend_accepted': return 'Friend Accepted';
+      case 'welcome': return 'Welcome';
+      default: return 'Notification';
+    }
+  };
+
   useEffect(() => {
     const fetchNotifications = async () => {
+      if (!user) return;
       try {
-        const data = await api.notifications.getUpdates();
+        const data = await api.notifications.getNotifications(user.id);
         setNotifications(data);
       } catch (error) {
         console.error('Failed to fetch notifications:', error);
@@ -39,7 +50,7 @@ const Header = ({
     if (showNotifications) {
       fetchNotifications();
     }
-  }, [showNotifications]);
+  }, [showNotifications, user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -54,9 +65,31 @@ const Header = ({
     };
   }, []);
 
-  const handleDeleteNotification = (id: string, e: React.MouseEvent) => {
+  const handleDeleteNotification = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setNotifications(prev => prev.filter(n => n.id !== id));
+    try {
+      await api.notifications.deleteNotification(id);
+      setNotifications(prev => prev.filter(n => n._id !== id));
+    } catch (error) {
+      console.error("Failed to delete notification", error);
+    }
+  };
+
+  const handleAction = async (id: string, action: 'accept' | 'reject', e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (action === 'accept') {
+        await api.notifications.acceptRequestFromNotification(id);
+        alert("Friend request accepted!");
+      } else {
+        await api.notifications.rejectRequestFromNotification(id);
+      }
+      // Remove from list after action
+      setNotifications(prev => prev.filter(n => n._id !== id));
+    } catch (error) {
+      console.error(`Failed to ${action} request:`, error);
+      alert(`Failed to ${action} request.`);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -93,7 +126,7 @@ const Header = ({
           position: absolute;
           right: 0;
           margin-top: 1rem;
-          width: 20rem;
+          width: 22rem;
           background-color: #111;
           border: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 1rem;
@@ -170,7 +203,7 @@ const Header = ({
         .notification-content-wrapper {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: flex-start;
           width: 100%;
         }
         .notification-text-content {
@@ -192,14 +225,23 @@ const Header = ({
           transition: all 0.2s;
           white-space: nowrap;
         }
-        .notification-btn-delete {
-          background-color: rgba(220, 38, 38, 0.15);
-          color: #ef4444;
-          border: 1px solid rgba(220, 38, 38, 0.3);
+        .notification-btn-accept {
+          background-color: rgba(212, 175, 55, 0.15);
+          color: #d4af37;
+          border: 1px solid rgba(212, 175, 55, 0.3);
         }
-        .notification-btn-delete:hover {
-          background-color: rgba(220, 38, 38, 0.25);
-          border-color: rgba(220, 38, 38, 0.5);
+        .notification-btn-accept:hover {
+           background-color: rgba(212, 175, 55, 0.25);
+           border-color: rgba(212, 175, 55, 0.5);
+        }
+        .notification-btn-reject {
+           background-color: rgba(113, 113, 122, 0.15);
+           color: #a1a1aa;
+           border: 1px solid rgba(113, 113, 122, 0.3);
+        }
+        .notification-btn-reject:hover {
+           background-color: rgba(113, 113, 122, 0.25);
+           color: white;
         }
         .notification-empty {
           padding: 2rem;
@@ -229,20 +271,6 @@ const Header = ({
           overflow: 'visible',
         }}
       >
-        {/* ================= GRADIENT BACKGROUND ================= */}
-        {/* <div
-        className="
-          absolute inset-0
-          bg-gradient-to-r
-          from-[#a89308]
-          via-[#99066a]
-          to-[#d95b0d]
-          opacity-20
-          blur-sm
-          animate-gradient-x
-        "
-      /> */}
-
         {/* ================= CONTENT ================= */}
         <div
           className="relative z-10"
@@ -340,7 +368,12 @@ const Header = ({
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="notification-bell-btn"
               >
-                <Bell className="notification-bell-icon" />
+                <div style={{ position: 'relative' }}>
+                  <Bell className="notification-bell-icon" />
+                  {notifications.filter(n => !n.read).length > 0 && (
+                    <span style={{ position: 'absolute', top: '-2px', right: '-2px', width: '8px', height: '8px', backgroundColor: '#ef4444', borderRadius: '50%' }}></span>
+                  )}
+                </div>
               </button>
 
               {showNotifications && (
@@ -358,25 +391,46 @@ const Header = ({
                     {notifications.length > 0 ? (
                       notifications.map((notif) => (
                         <div
-                          key={notif.id}
+                          key={notif._id}
                           className="notification-item"
                         >
                           <div className="notification-content-wrapper">
                             <div className="notification-text-content">
                               <div className="notification-item-header">
-                                <h4 className="notification-item-title">{notif.title}</h4>
-                                <span className="notification-item-time">{notif.time}</span>
+                                <h4 className="notification-item-title">{getNotificationTitle(notif.type)}</h4>
+                                <span className="notification-item-time">{new Date(notif.created_at).toLocaleDateString()}</span>
                               </div>
                               <p className="notification-item-message">{notif.message}</p>
                             </div>
-                            <div className="notification-actions">
-                              <button
-                                className="notification-action-btn notification-btn-delete"
-                                onClick={(e) => handleDeleteNotification(notif.id, e)}
-                              >
-                                Delete
-                              </button>
-                            </div>
+
+                            {/* Actions for Friend Requests */}
+                            {notif.type === 'friend_requested' ? (
+                              <div className="notification-actions">
+                                <button
+                                  className="notification-action-btn notification-btn-accept"
+                                  onClick={(e) => handleAction(notif._id, 'accept', e)}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  className="notification-action-btn notification-btn-reject"
+                                  onClick={(e) => handleAction(notif._id, 'reject', e)}
+                                >
+                                  Reject
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="notification-actions">
+                                <button
+                                  className="notification-action-btn notification-btn-reject"
+                                  onClick={(e) => handleDeleteNotification(notif._id, e)}
+                                  title="Clear notification"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            )}
+
                           </div>
                         </div>
                       ))

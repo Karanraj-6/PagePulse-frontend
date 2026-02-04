@@ -1,13 +1,12 @@
 // API service layer - Connected to Microservices
 
-const mockNotifications: Notification[] = [
-  { id: '1', title: 'New Book Arrival', message: 'The latest edition of "The Great Gatsby" is now available.', time: '2 hours ago', read: false },
-  { id: '2', title: 'Friend Request', message: 'John Doe sent you a friend request.', time: '5 hours ago', read: true },
-];
+// API service layer - Connected to Microservices
+
 
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3001';
 const BOOK_URL = import.meta.env.VITE_BOOK_URL || 'http://localhost:3002';
 const CHAT_URL = import.meta.env.VITE_CHAT_URL || 'http://localhost:3003';
+const NOTIFICATION_URL = import.meta.env.VITE_NOTIFICATION_URL || 'http://localhost:3007';
 
 // Cookie Helpers - Use 'token' to match backend
 export const getAuthToken = (): string | null => {
@@ -104,6 +103,9 @@ const bookRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
 const chatRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
   apiRequest<T>(endpoint, { ...options, baseUrl: CHAT_URL });
 
+const notificationRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
+  apiRequest<T>(endpoint, { ...options, baseUrl: NOTIFICATION_URL });
+
 // Auth Service
 export const authApi = {
   register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/auth/register', { method: 'POST', body: data }),
@@ -134,26 +136,26 @@ export const authApi = {
     clearAuthToken();
   },
 
-  searchUsers: (query: string) =>
-    authRequest<User[]>('/users', {
+  searchUsers: async (query: string) => {
+    const users = await authRequest<any[]>('/users', {
       params: { q: query },
-    }),
+    });
+    return users.map(u => ({
+      ...u,
+      id: u.user_id || u.id || u._id, // Handle backend variations
+    })) as User[];
+  },
 
   getFriends: (userId: string) =>
     authRequest<Friend[]>('/friends', {
       params: { userId },
     }),
 
-  manageFriendship: (myId: string, targetId: string, action: 'add' | 'block') =>
-    authRequest<void>('/friends', {
+  // Only 'add' remains on Auth service (port 3001)
+  sendFriendRequest: (myId: string, targetId: string) =>
+    authRequest<{ success: boolean; status: string }>('/friends', {
       method: 'POST',
-      body: { myId, targetId, action },
-    }),
-
-  acceptFriendRequest: (myId: string, targetId: string) =>
-    authRequest<void>('/friends', {
-      method: 'PUT',
-      body: { myId, targetId },
+      body: { myId, targetId, action: 'add' },
     }),
 };
 
@@ -229,6 +231,7 @@ export interface User {
 export interface Friend {
   user_id: string;
   username: string;
+  avatar?: string; // Added to support profile pics in friend list
   status: 'accepted' | 'pending' | 'blocked';
 }
 
@@ -318,11 +321,14 @@ export interface MessageHistoryResponse {
 }
 
 export interface Notification {
-  id: string;
-  title: string;
+  _id: string; // MongoDB ObjectId
+  receiver_id: string;
+  sender_id: string;
+  sender_username: string;
+  type: 'friend_requested' | 'friend_accepted' | 'welcome';
   message: string;
-  time: string;
   read: boolean;
+  created_at: string;
 }
 
 // User API
@@ -358,9 +364,60 @@ export const userApi = {
   },
 };
 
-// Notification API (Mock)
+// Notification & Friend Action Service (Port 3007)
 export const notificationApi = {
-  getUpdates: () => Promise.resolve(mockNotifications),
+  // Notifications
+  getNotifications: (userId: string, unreadOnly?: boolean) =>
+    notificationRequest<Notification[]>(`/notifications/${userId}`, {
+      params: { unreadOnly: unreadOnly ? 'true' : undefined }
+    }),
+
+  getUnreadCount: (userId: string) =>
+    notificationRequest<{ count: number }>(`/notifications/${userId}/count`),
+
+  markAsRead: (id: string) =>
+    notificationRequest<void>(`/notifications/${id}/read`, { method: 'PUT' }),
+
+  markAllAsRead: (userId: string) =>
+    notificationRequest<void>(`/notifications/${userId}/read-all`, { method: 'PUT' }),
+
+  deleteNotification: (id: string) =>
+    notificationRequest<void>(`/notifications/${id}`, { method: 'DELETE' }),
+
+  // Friend Actions via Notification (Accept/Reject/Block)
+  acceptRequestFromNotification: (notificationId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+      `/notifications/${notificationId}/accept`, { method: 'POST' }
+    ),
+
+  rejectRequestFromNotification: (notificationId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+      `/notifications/${notificationId}/reject`, { method: 'POST' }
+    ),
+
+  blockUserFromNotification: (notificationId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+      `/notifications/${notificationId}/block`, { method: 'POST' }
+    ),
+
+  // Direct Friend Actions (No notification ID required)
+  acceptFriendRequest: (userId: string, targetId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>('/friends/accept', {
+      method: 'POST',
+      body: { userId, targetId }
+    }),
+
+  rejectFriendRequest: (userId: string, targetId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>('/friends/reject', {
+      method: 'POST',
+      body: { userId, targetId }
+    }),
+
+  blockUser: (userId: string, targetId: string) =>
+    notificationRequest<{ success: boolean; message: string; new_status: string }>('/friends/block', {
+      method: 'POST',
+      body: { userId, targetId }
+    }),
 };
 
 export default {
