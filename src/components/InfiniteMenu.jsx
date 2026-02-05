@@ -814,10 +814,10 @@ class InfiniteGridMenu {
 
 const defaultItems = [
   {
-    image: 'https://picsum.photos/900/900?grayscale',
-    link: 'https://google.com/',
-    title: '',
-    description: ''
+    image: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
+    link: '',
+    title: 'No Chats',
+    description: 'Add a friend to start'
   }
 ];
 
@@ -833,8 +833,10 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
     const canvas = canvasRef.current;
 
     const handleActiveItem = index => {
-      const itemIndex = index % items.length;
-      setActiveItem(items[itemIndex]);
+      // Use the same items array that the WebGL class is using
+      const currentItems = items.length ? items : defaultItems;
+      const itemIndex = index % currentItems.length;
+      setActiveItem(currentItems[itemIndex]);
     };
 
     if (canvas) {

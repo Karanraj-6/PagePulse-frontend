@@ -46,17 +46,18 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
     }
   };
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user) return;
-      try {
-        const data = await notificationApi.getNotifications(user.id);
-        setNotifications(data);
-      } catch (error) {
-        console.error('Failed to fetch notifications:', error);
-      }
-    };
+  // Reusable fetch function
+  const fetchNotifications = async () => {
+    if (!user) return;
+    try {
+      const data = await notificationApi.getNotifications(user.id);
+      setNotifications(data);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    }
+  };
 
+  useEffect(() => {
     if (showNotifications || user) {
       fetchNotifications();
     }
@@ -85,16 +86,34 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
   const handleAction = async (id: string, action: 'accept' | 'reject', e: React.MouseEvent) => {
     e.stopPropagation();
     try {
+      let response;
       if (action === 'accept') {
-        await notificationApi.acceptRequestFromNotification(id);
-        alert("Friend request accepted!");
+        response = await notificationApi.acceptRequestFromNotification(id);
+        if (!response.success) {
+          alert(`Failed to accept: ${response.message || 'Unknown error'}`);
+          return;
+        }
+        alert(response.message || "Friend request accepted!");
       } else {
-        await notificationApi.rejectRequestFromNotification(id);
+        response = await notificationApi.rejectRequestFromNotification(id);
+        if (!response.success) {
+          alert(`Failed to reject: ${response.message || 'Unknown error'}`);
+          return;
+        }
       }
-      setNotifications(prev => prev.filter(n => n._id !== id));
-    } catch (error) {
+
+      // Check 'deleted' flag from backend
+      if (response.deleted) {
+        setNotifications(prev => prev.filter(n => n._id !== id));
+      } else {
+        // Success but NOT deleted (e.g. DB error on delete)
+        alert("Action succeeded but failed to clear notification. Refreshing...");
+        fetchNotifications();
+      }
+
+    } catch (error: any) {
       console.error(`Failed to ${action} request:`, error);
-      alert(`Failed to ${action} request.`);
+      alert(`Failed to ${action} request: ${error.message || error.toString()}`);
     }
   };
 
@@ -235,10 +254,14 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                             <h4 style={{ fontSize: '0.875rem', fontWeight: 500, color: '#d4af37', margin: 0 }}>{getNotificationTitle(notif.type)}</h4>
                             <span style={{ fontSize: '0.75rem', color: '#71717a' }}>{new Date(notif.created_at).toLocaleDateString()}</span>
                           </div>
-                          <p style={{ fontSize: '0.875rem', color: '#d4d4d8', margin: 0 }}>{notif.message}</p>
+                          <p style={{ fontSize: '0.875rem', color: '#d4d4d8', margin: 0 }}>
+                            {notif.type === 'friend_requested' && notif.sender_username
+                              ? `${notif.sender_username} wants to add you as a friend`
+                              : notif.message}
+                          </p>
 
-                          {/* Actions */}
-                          {notif.type === 'friend_requested' ? (
+                          {/* Actions - Only show if pending and not already resolved in message text */}
+                          {notif.type === 'friend_requested' && !notif.message.toLowerCase().includes('you accepted') && !notif.message.toLowerCase().includes('you rejected') && !notif.message.toLowerCase().includes('accepted your') ? (
                             <div className="notification-actions">
                               <button className="notification-action-btn btn-accept" onClick={(e) => handleAction(notif._id, 'accept', e)}>Accept</button>
                               <button className="notification-action-btn btn-reject" onClick={(e) => handleAction(notif._id, 'reject', e)}>Reject</button>

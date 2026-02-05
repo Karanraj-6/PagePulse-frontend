@@ -386,17 +386,17 @@ export const notificationApi = {
 
   // Friend Actions via Notification (Accept/Reject/Block)
   acceptRequestFromNotification: (notificationId: string) =>
-    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+    notificationRequest<{ success: boolean; message: string; new_status: string; deleted?: boolean }>(
       `/notifications/${notificationId}/accept`, { method: 'POST' }
     ),
 
   rejectRequestFromNotification: (notificationId: string) =>
-    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+    notificationRequest<{ success: boolean; message: string; new_status: string; deleted?: boolean }>(
       `/notifications/${notificationId}/reject`, { method: 'POST' }
     ),
 
   blockUserFromNotification: (notificationId: string) =>
-    notificationRequest<{ success: boolean; message: string; new_status: string }>(
+    notificationRequest<{ success: boolean; message: string; new_status: string; deleted?: boolean }>(
       `/notifications/${notificationId}/block`, { method: 'POST' }
     ),
 

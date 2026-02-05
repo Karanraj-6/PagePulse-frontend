@@ -108,6 +108,7 @@
 }
 
 @media (max-width: 1500px) {
+
   .face-title,
   .face-description {
     display: none;
