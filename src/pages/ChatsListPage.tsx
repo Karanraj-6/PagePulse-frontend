@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import InfiniteMenu from '../components/InfiniteMenu';
 import TextPressure from '../components/TextPressure';
+import { useToast } from '../context/ToastContext';
 import { chatApi, authApi, notificationApi, type Conversation, type Notification } from '../services/api';
 
 // --- HEADER COMPONENT (Same as before) ---
@@ -23,7 +24,7 @@ interface HeaderProps {
 
 const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, defaultAvatar, handleAvatarError } = useAuth();
 
   // Notification State
   const [showNotifications, setShowNotifications] = useState(false);
@@ -345,7 +346,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
             </button>
 
             <button onClick={() => navigate('/profile')} style={{ width: '56px', height: '56px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', overflow: 'hidden' }}>
-              {user?.avatar ? <img src={user.avatar} alt={user.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon className="w-6 h-6 text-zinc-400" />}
+              <img src={user?.avatar || defaultAvatar} alt={user?.username} onError={handleAvatarError} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </button>
           </div>
         </div>
@@ -400,7 +401,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                         }}
                       >
                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#333', overflow: 'hidden' }}>
-                          {u.avatar ? <img src={u.avatar} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={16} className="text-zinc-500 m-auto mt-1.5" />}
+                          <img src={u.avatar || defaultAvatar} alt={u.username} onError={handleAvatarError} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                         <span style={{ color: '#fff', fontWeight: '500' }}>{u.username}</span>
                         <div style={{ marginLeft: 'auto', fontSize: '10px', color: '#666', border: '1px solid #333', padding: '2px 6px', borderRadius: '4px' }}>SELECT</div>
@@ -436,7 +437,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
 // --- MAIN PAGE ---
 const ChatsListPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, defaultAvatar } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
   const [forceScroll, setForceScroll] = useState(0);
@@ -454,7 +455,6 @@ const ChatsListPage = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fallback for anonymous user
-  const DEFAULT_AVATAR = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -486,7 +486,7 @@ const ChatsListPage = () => {
           return {
             id: friendId,
             username: friend.username,
-            avatar: friend.avatar || DEFAULT_AVATAR,
+            avatar: friend.avatar || defaultAvatar,
             lastMessage: lastMsgContent || 'Start a conversation',
             unread: isUnread
           };
@@ -506,7 +506,7 @@ const ChatsListPage = () => {
   // Convert to props for InfiniteMenu (Memoized to prevent flickering on input change)
   const menuItems = useMemo(() => {
     let mappedItems = items.map(item => ({
-      image: item.avatar || DEFAULT_AVATAR,
+      image: item.avatar || defaultAvatar,
       link: `/chats/${item.username}`,
       title: item.username,
       description: item.lastMessage,
@@ -518,7 +518,7 @@ const ChatsListPage = () => {
     // Handling Empty State Explicitly
     if (mappedItems.length === 0 && !isLoading) {
       mappedItems = [{
-        image: DEFAULT_AVATAR,
+        image: defaultAvatar,
         link: '',
         title: 'No Friends Yet',
         description: 'Add a friend to start chatting',

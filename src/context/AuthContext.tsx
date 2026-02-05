@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type { User } from '../services/api';
 import { authApi, setAuthToken } from '../services/api';
 
+import defaultAvatar from '../assets/defaultAvatar.png';
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -9,6 +11,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
+  defaultAvatar: string;
+  handleAvatarError: (e: React.SyntheticEvent<HTMLImageElement, Event>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +20,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Centralized Error Handler for Avatars
+  const handleAvatarError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    e.currentTarget.src = defaultAvatar;
+  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -36,13 +45,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     initAuth();
   }, []);
 
+  // Prefetch avatar when user logs in or is restored
+  useEffect(() => {
+    if (user?.avatar) {
+      // 1. user.avatar contains the S3 URL (e.g. https://bucket.s3.amazonaws.com/...)
+      // 2. Creating a new Image() and setting src forces the browser to download (fetch) the asset
+      const img = new Image();
+      img.src = user.avatar;
+      console.log('🖼️ [S3 PREFETCH] Downloading avatar from:', user.avatar);
+    }
+  }, [user?.avatar]);
+
   const login = async (email: string, password: string) => {
     console.log("LOGIN START");
     setIsLoading(true);
     try {
       const response = await authApi.login(email, password);
-      
-      
+
+
       // Double-check token was set (already done in authApi.login)
       if (response.token) {
         console.log("Token confirmed in response");
@@ -95,6 +115,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         signup,
         logout,
+        defaultAvatar,
+        handleAvatarError
       }}
     >
       {children}

@@ -10,7 +10,7 @@ import { authApi, userApi } from '../services/api';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout, isLoading, defaultAvatar, handleAvatarError } = useAuth();
 
   // Local state for fetched data
   const [activePopup, setActivePopup] = useState<null | 'favorites' | 'friends' | 'avatar'>(null);
@@ -21,7 +21,7 @@ const ProfilePage = () => {
   const displayUser = {
     username: user?.username || 'Loading...',
     email: user?.email || 'No Email',
-    profileImage: user?.avatar || 'https://ui-avatars.com/api/?name=' + (user?.username || 'User')
+    profileImage: user?.avatar || defaultAvatar
   };
 
   // Avatar upload states
@@ -94,10 +94,10 @@ const ProfilePage = () => {
 
     try {
       console.log('📤 Uploading avatar...');
-      
+
       // Upload to S3 via backend
       const response = await userApi.uploadAvatar(selectedFile);
-      
+
       console.log('✅ Avatar uploaded successfully:', response.avatarUrl);
 
       // Refresh the page to get updated user data
@@ -344,6 +344,7 @@ const ProfilePage = () => {
                     <img
                       src={previewUrl || displayUser.profileImage}
                       alt="Avatar Preview"
+                      onError={handleAvatarError}
                       style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: isUploading ? 0.5 : 1 }}
                     />
                   </div>
@@ -412,11 +413,11 @@ const ProfilePage = () => {
                       {isUploading ? 'Uploading...' : 'Upload to Cloud'}
                     </button>
 
-                    <p style={{ 
-                      fontSize: '0.75rem', 
-                      color: '#71717a', 
-                      textAlign: 'center', 
-                      margin: 0 
+                    <p style={{
+                      fontSize: '0.75rem',
+                      color: '#71717a',
+                      textAlign: 'center',
+                      margin: 0
                     }}>
                       Max file size: 5MB • Formats: JPG, PNG, GIF, WebP
                     </p>

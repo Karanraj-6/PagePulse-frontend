@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom'; // Import navigation
+import { useAuth } from '../context/AuthContext';
 import { mat4, quat, vec2, vec3 } from 'gl-matrix';
 import './InfiniteMenu.css';
 
@@ -477,8 +478,9 @@ class InfiniteGridMenu {
   scaleFactor = 1.0;
   movementActive = false;
 
-  constructor(canvas, items, onActiveItemChange, onMovementChange, onInit = null, scale = 1.0) {
+  constructor(canvas, items, onActiveItemChange, onMovementChange, onInit = null, scale = 1.0, defaultAvatar) {
     this.canvas = canvas;
+    this.defaultAvatar = defaultAvatar;
     this.items = items || [];
     this.onActiveItemChange = onActiveItemChange || (() => { });
     this.onMovementChange = onMovementChange || (() => { });
@@ -587,7 +589,16 @@ class InfiniteGridMenu {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => resolve(img);
-            img.src = item.image;
+            img.onerror = () => {
+              // Fallback to default avatar if loading fails
+              // We resolve with a new Image object that loads the default avatar
+              const fallback = new Image();
+              fallback.crossOrigin = 'anonymous';
+              fallback.onload = () => resolve(fallback);
+              fallback.onerror = () => resolve(fallback); // Resolve anyway to avoid hanging
+              fallback.src = this.defaultAvatar;
+            };
+            img.src = item.image || this.defaultAvatar; // Use default immediately if null
           })
       )
     ).then(images => {
@@ -819,6 +830,7 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
   const canvasRef = useRef(null);
   const sketchRef = useRef(null);
   const navigate = useNavigate();
+  const { defaultAvatar } = useAuth();
   const [activeItem, setActiveItem] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
   const prevIndexRef = useRef(-1);
@@ -848,7 +860,8 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
         handleActiveItem,
         setIsMoving,
         sk => sk.run(),
-        scale
+        scale,
+        defaultAvatar
       );
     }
 

@@ -327,7 +327,7 @@ const BookReaderPage = () => {
     };
 
     // --- SOCKET.IO CHAT INTEGRATION ---
-    const { user } = useAuth();
+    const { user, defaultAvatar } = useAuth();
     const { socket } = useSocket();
 
     // Fix: Separate connection logic from listeners to prevent re-connection loops
@@ -354,7 +354,7 @@ const BookReaderPage = () => {
                 user: msg.sender,
                 text: msg.content,
                 isMe: false,
-                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${msg.sender}`,
+                avatar: defaultAvatar,
                 page: currentSpread,
                 isFriendsOnly: msg.isFriendsOnly // Capture the flag
             };
@@ -481,7 +481,9 @@ const BookReaderPage = () => {
                             <div key={user.id} style={{ marginLeft: index === 0 ? 0 : '-15px', zIndex: index, position: 'relative' }}>
                                 <Avatar className="w-10 h-10 border-[3px] border-[#050505]">
                                     <AvatarImage src={user.img} alt={user.name} />
-                                    <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{user.name.charAt(0)}</AvatarFallback>
+                                    <AvatarFallback className="bg-zinc-800">
+                                        <img src={defaultAvatar} alt="Default" className="h-full w-full object-cover" />
+                                    </AvatarFallback>
                                 </Avatar>
                             </div>
                         ))}
@@ -508,7 +510,10 @@ const BookReaderPage = () => {
                         {popupMessage && !showChat && (
                             <div style={{ position: 'absolute', top: '50px', right: '0', width: '280px', backgroundColor: '#18181b', border: '1px solid #d4af37', borderRadius: '12px', padding: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', zIndex: 100, animation: 'fadeIn 0.3s ease-out' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                                    <Avatar className="w-6 h-6"><AvatarImage src={popupMessage.avatar || undefined} /></Avatar>
+                                    <Avatar className="w-8 h-8 flex-shrink-0">
+                                        <AvatarImage src={popupMessage.avatar || defaultAvatar} />
+                                        <AvatarFallback><img src={defaultAvatar} alt="Default" className="h-full w-full object-cover" /></AvatarFallback>
+                                    </Avatar>
                                     <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#d4af37' }}>{popupMessage.user}</span>
                                     <span style={{ fontSize: '0.7rem', color: '#666', marginLeft: 'auto' }}>Now</span>
                                 </div>
@@ -627,115 +632,119 @@ const BookReaderPage = () => {
             </div>
 
             {/* CHAT SIDEBAR */}
-            {showChat && (
-                <aside style={{ width: '350px', backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 50, boxShadow: '-5px 0 20px rgba(0,0,0,0.5)' }}>
-                    <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ fontWeight: 'bold', color: '#fff', margin: 0, fontSize: '1.1rem' }}>Live Chat</h3>
-                        <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X className="w-5 h-5 hover:text-white" /></button>
-                    </div>
-                    <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        {messages
-                            .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
-                            .length === 0 ? (
-                            <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
-                                {isFriendsOnly ? "No friends-only messages." : "No public messages."}
-                            </div>
-                        ) : (
-                            messages
+            {
+                showChat && (
+                    <aside style={{ width: '350px', backgroundColor: '#0a0a0a', borderLeft: '1px solid rgba(255,255,255,0.1)', display: 'flex', flexDirection: 'column', position: 'absolute', right: 0, top: 0, bottom: 0, zIndex: 50, boxShadow: '-5px 0 20px rgba(0,0,0,0.5)' }}>
+                        <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontWeight: 'bold', color: '#fff', margin: 0, fontSize: '1.1rem' }}>Live Chat</h3>
+                            <button onClick={() => setShowChat(false)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}><X className="w-5 h-5 hover:text-white" /></button>
+                        </div>
+                        <div ref={chatScrollRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            {messages
                                 .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
-                                .map((msg) => (
-                                    <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                                        {!msg.isMe && (
-                                            <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
-                                                <AvatarImage src={msg.avatar || undefined} />
-                                                <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
-                                                {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
-                                                <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
+                                .length === 0 ? (
+                                <div style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
+                                    {isFriendsOnly ? "No friends-only messages." : "No public messages."}
+                                </div>
+                            ) : (
+                                messages
+                                    .filter(msg => isFriendsOnly ? msg.isFriendsOnly : !msg.isFriendsOnly)
+                                    .map((msg) => (
+                                        <div key={msg.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexDirection: msg.isMe ? 'row-reverse' : 'row', alignSelf: msg.isMe ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                                            {!msg.isMe && (
+                                                <Avatar className="w-10 h-10 border-2 border-[#050505]" style={{ marginRight: '10px' }}>
+                                                    <AvatarImage src={msg.avatar || defaultAvatar} />
+                                                    <AvatarFallback className="bg-zinc-800 text-[10px] text-white">{msg.user.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                            )}
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start', width: '100%' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: '4px' }}>
+                                                    {!msg.isMe && <span style={{ fontSize: '0.7rem', color: '#d4af37', fontWeight: 'bold' }}>{msg.user}</span>}
+                                                    <span style={{ fontSize: '0.6rem', color: '#666', marginLeft: msg.isMe ? '0' : 'auto', marginRight: msg.isMe ? '0' : '0' }}>{msg.page === 0 ? 'Cover' : `Pages ${msg.page * 2 - 1}-${msg.page * 2}`}</span>
+                                                </div>
+                                                <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
                                             </div>
-                                            <div style={{ backgroundColor: msg.isMe ? '#d4af37' : '#27272a', color: msg.isMe ? '#000' : '#fff', padding: '10px 14px', borderRadius: '12px', borderBottomRightRadius: msg.isMe ? '2px' : '12px', borderBottomLeftRadius: msg.isMe ? '12px' : '2px', fontSize: '0.9rem', lineHeight: '1.4', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>{msg.text}</div>
                                         </div>
-                                    </div>
-                                ))
-                        )}
-                    </div>
-
-                    <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', color: '#666', fontSize: '0.8rem' }}>
-                            <button onClick={() => setIsPopupEnabled(!isPopupEnabled)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: isPopupEnabled ? '#d4af37' : '#666' }}>
-                                {isPopupEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
-                                <span>Popups {isPopupEnabled ? 'On' : 'Off'}</span>
-                            </button>
-
-                            <button
-                                onClick={() => setIsFriendsOnly(!isFriendsOnly)}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                    background: 'none', border: 'none', cursor: 'pointer',
-                                    color: isFriendsOnly ? '#d4af37' : '#666',
-                                    fontWeight: isFriendsOnly ? 'bold' : 'normal'
-                                }}
-                            >
-                                <Users className="w-3 h-3" />
-                                <span>{isFriendsOnly ? 'Friends Only' : 'Everyone'}</span>
-                            </button>
+                                    ))
+                            )}
                         </div>
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#18181b', padding: '8px', borderRadius: '24px', border: '1px solid #333' }}>
-                            <input style={{ flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.9rem', paddingLeft: '8px' }} placeholder={isFriendsOnly ? "Message friends..." : "Type a message..."} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-                            <button onClick={handleSendMessage} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#d4af37', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', transition: 'transform 0.1s' }}><Send className="w-4 h-4" /></button>
+
+                        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', backgroundColor: '#0a0a0a' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', color: '#666', fontSize: '0.8rem' }}>
+                                <button onClick={() => setIsPopupEnabled(!isPopupEnabled)} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: isPopupEnabled ? '#d4af37' : '#666' }}>
+                                    {isPopupEnabled ? <Bell className="w-3 h-3" /> : <BellOff className="w-3 h-3" />}
+                                    <span>Popups {isPopupEnabled ? 'On' : 'Off'}</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setIsFriendsOnly(!isFriendsOnly)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                        background: 'none', border: 'none', cursor: 'pointer',
+                                        color: isFriendsOnly ? '#d4af37' : '#666',
+                                        fontWeight: isFriendsOnly ? 'bold' : 'normal'
+                                    }}
+                                >
+                                    <Users className="w-3 h-3" />
+                                    <span>{isFriendsOnly ? 'Friends Only' : 'Everyone'}</span>
+                                </button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', backgroundColor: '#18181b', padding: '8px', borderRadius: '24px', border: '1px solid #333' }}>
+                                <input style={{ flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none', color: '#fff', fontSize: '0.9rem', paddingLeft: '8px' }} placeholder={isFriendsOnly ? "Message friends..." : "Type a message..."} value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+                                <button onClick={handleSendMessage} style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: '#d4af37', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#000', transition: 'transform 0.1s' }}><Send className="w-4 h-4" /></button>
+                            </div>
                         </div>
-                    </div>
-                </aside>
-            )}
+                    </aside>
+                )
+            }
 
             {/* INVITE MODAL */}
-            {showInviteModal && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                    <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                            <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>{inviteMode === 'direct' ? 'Invite Friend' : 'Select Friend'}</h3>
-                            <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center' }}><X className="w-6 h-6 hover:text-white transition-colors" /></button>
-                        </div>
-                        {inviteMode === 'direct' && (
-                            <>
-                                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '25px', lineHeight: '1.5' }}>Share this reading session by entering a username or email directly.</p>
-                                <div style={{ position: 'relative', marginBottom: '25px' }}>
-                                    <input type="text" placeholder="Enter username or email..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '14px', paddingRight: '50px', color: '#fff', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.currentTarget.style.borderColor = '#d4af37'} onBlur={(e) => e.currentTarget.style.borderColor = '#333'} />
-                                    <button onClick={() => setInviteMode('friends')} title="Select from Friends List" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#d4af37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}><Users className="w-5 h-5 hover:text-white transition-colors" /></button>
-                                </div>
-                                <div style={{ display: 'flex', gap: '15px' }}>
-                                    <button onClick={handleCloseModal} style={{ flex: 1, backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: 'background 0.2s' }}>Send Invite</button>
-                                    <button onClick={handleCloseModal} style={{ padding: '14px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
-                                </div>
-                            </>
-                        )}
-                        {inviteMode === 'friends' && (
-                            <>
-                                <div style={{ position: 'relative', marginBottom: '20px' }}>
-                                    <input type="text" placeholder="Search friends..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '10px 10px 10px 40px', color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                                    <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                                </div>
-                                <div style={{ flex: 1, maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                    {FRIENDS_LIST.map(friend => (
-                                        <div key={friend.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '8px', border: '1px solid #222', backgroundColor: '#111' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                <Avatar className="w-10 h-10 border border-white/10"><AvatarImage src={friend.img} /><AvatarFallback>{friend.name[0]}</AvatarFallback></Avatar>
-                                                <div><p style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.name}</p><p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>{friend.username}</p></div>
+            {
+                showInviteModal && (
+                    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                        <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>{inviteMode === 'direct' ? 'Invite Friend' : 'Select Friend'}</h3>
+                                <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center' }}><X className="w-6 h-6 hover:text-white transition-colors" /></button>
+                            </div>
+                            {inviteMode === 'direct' && (
+                                <>
+                                    <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '25px', lineHeight: '1.5' }}>Share this reading session by entering a username or email directly.</p>
+                                    <div style={{ position: 'relative', marginBottom: '25px' }}>
+                                        <input type="text" placeholder="Enter username or email..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '14px', paddingRight: '50px', color: '#fff', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.currentTarget.style.borderColor = '#d4af37'} onBlur={(e) => e.currentTarget.style.borderColor = '#333'} />
+                                        <button onClick={() => setInviteMode('friends')} title="Select from Friends List" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#d4af37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}><Users className="w-5 h-5 hover:text-white transition-colors" /></button>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '15px' }}>
+                                        <button onClick={handleCloseModal} style={{ flex: 1, backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: 'background 0.2s' }}>Send Invite</button>
+                                        <button onClick={handleCloseModal} style={{ padding: '14px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
+                                    </div>
+                                </>
+                            )}
+                            {inviteMode === 'friends' && (
+                                <>
+                                    <div style={{ position: 'relative', marginBottom: '20px' }}>
+                                        <input type="text" placeholder="Search friends..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '10px 10px 10px 40px', color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                                        <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                                    </div>
+                                    <div style={{ flex: 1, maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        {FRIENDS_LIST.map(friend => (
+                                            <div key={friend.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '8px', border: '1px solid #222', backgroundColor: '#111' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                    <Avatar className="w-10 h-10 border border-white/10"><AvatarImage src={friend.img} /><AvatarFallback>{friend.name[0]}</AvatarFallback></Avatar>
+                                                    <div><p style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.name}</p><p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>{friend.username}</p></div>
+                                                </div>
+                                                <button onClick={handleCloseModal} style={{ backgroundColor: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>Invite</button>
                                             </div>
-                                            <button onClick={handleCloseModal} style={{ backgroundColor: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>Invite</button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <button onClick={() => setInviteMode('direct')} style={{ width: '100%', padding: '12px', backgroundColor: '#222', color: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>Back to Manual Entry</button>
-                            </>
-                        )}
+                                        ))}
+                                    </div>
+                                    <button onClick={() => setInviteMode('direct')} style={{ width: '100%', padding: '12px', backgroundColor: '#222', color: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>Back to Manual Entry</button>
+                                </>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

@@ -26,7 +26,7 @@ interface UIMessage {
 }
 
 const ChatPage = () => {
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, defaultAvatar, handleAvatarError } = useAuth();
     const { socket } = useSocket();
     const { username } = useParams<{ username: string }>();
     const navigate = useNavigate();
@@ -410,8 +410,9 @@ const ChatPage = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ position: 'relative', width: '44px', height: '44px' }}>
                                     <img
-                                        src={activeUser.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${activeUser.username}`}
+                                        src={activeUser.avatar || defaultAvatar}
                                         alt={activeUser.username}
+                                        onError={handleAvatarError}
                                         style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }}
                                     />
                                 </div>
