@@ -116,25 +116,46 @@ const ChatPage = () => {
             // Check if this message belongs to current chat
             if (msg.conversation_id !== conversationId) return;
 
-            const isMe = msg.sender_id === currentUser?.id;
-
-            const newUIMsg: UIMessage = {
-                id: msg.message_id,
-                text: msg.content,
-                sender: isMe ? 'me' : 'them',
-                time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                status: 'read',
-                rawDate: new Date(msg.sent_at)
-            };
-
             setMessages(prev => {
-                // Deduplicate
-                if (prev.some(m => m.id === newUIMsg.id)) return prev;
+                // 1. Deduplicate by DB ID
+                if (prev.some(m => m.id === msg.message_id)) return prev;
+
+                const isMe = msg.sender_id === currentUser?.id;
+
+                // 2. If it's my message, try to find the optimistic "sending" message to replace
+                if (isMe) {
+                    const pendingIndex = prev.findIndex(m =>
+                        m.status === 'sending' &&
+                        m.sender === 'me' &&
+                        m.text === msg.content
+                    );
+
+                    if (pendingIndex !== -1) {
+                        const newMessages = [...prev];
+                        newMessages[pendingIndex] = {
+                            id: msg.message_id,
+                            text: msg.content,
+                            sender: 'me',
+                            time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            status: 'sent', // Mark as confirmed
+                            rawDate: new Date(msg.sent_at)
+                        };
+                        return newMessages;
+                    }
+                }
+
+                // 3. Otherwise append new message
+                const newUIMsg: UIMessage = {
+                    id: msg.message_id,
+                    text: msg.content,
+                    sender: isMe ? 'me' : 'them',
+                    time: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    status: 'read',
+                    rawDate: new Date(msg.sent_at)
+                };
+
                 return [...prev, newUIMsg];
             });
-
-            // Scroll to bottom if near bottom
-            // messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         };
 
         socket.on('receive_private_message', handleReceive);

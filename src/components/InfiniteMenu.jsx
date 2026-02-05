@@ -587,13 +587,6 @@ class InfiniteGridMenu {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => resolve(img);
-            img.onerror = () => {
-              console.warn(`Failed to load image: ${item.image}`);
-              // Fallback to a placeholder or just resolve with the broken image (drawing it might fail but promise won't hang)
-              // Better: Create a fallback 1x1 pixel or keep it blank
-              img.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='; // 1x1 transparent
-              resolve(img);
-            };
             img.src = item.image;
           })
       )
@@ -814,10 +807,10 @@ class InfiniteGridMenu {
 
 const defaultItems = [
   {
-    image: 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
-    link: '',
-    title: 'No Chats',
-    description: 'Add a friend to start'
+    image: 'https://picsum.photos/900/900?grayscale',
+    link: 'https://google.com/',
+    title: '',
+    description: ''
   }
 ];
 

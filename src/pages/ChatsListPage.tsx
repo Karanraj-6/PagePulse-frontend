@@ -12,9 +12,9 @@ import {
 import { useAuth } from '../context/AuthContext';
 import InfiniteMenu from '../components/InfiniteMenu';
 import TextPressure from '../components/TextPressure';
-import { chatApi, authApi, notificationApi, type Conversation, type User, type Notification } from '../services/api';
+import { chatApi, authApi, notificationApi, type Conversation, type Notification } from '../services/api';
 
-// --- HEADER COMPONENT ---
+// --- HEADER COMPONENT (Same as before) ---
 interface HeaderProps {
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -46,7 +46,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
     }
   };
 
-  // Reusable fetch function
   const fetchNotifications = async () => {
     if (!user) return;
     try {
@@ -102,11 +101,9 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
         }
       }
 
-      // Check 'deleted' flag from backend
       if (response.deleted) {
         setNotifications(prev => prev.filter(n => n._id !== id));
       } else {
-        // Success but NOT deleted (e.g. DB error on delete)
         alert("Action succeeded but failed to clear notification. Refreshing...");
         fetchNotifications();
       }
@@ -124,7 +121,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
   };
 
   // --- ADD FRIEND LOGIC ---
-  // Debounced search effect
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (friendUsername.length >= 2) {
@@ -153,7 +149,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
         const exactMatch = users.find(u => u.username.toLowerCase() === friendUsername.toLowerCase());
         if (exactMatch) {
           targetId = exactMatch.id;
-          targetName = exactMatch.username;
         }
       } catch (e) { }
     }
@@ -171,8 +166,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
       setIsModalOpen(false);
     } catch (error: any) {
       console.error("Failed to add friend:", error);
-      const errorMessage = error.message || error.error || error.toString();
-      alert(`Failed to send request: ${errorMessage}`);
+      alert(`Failed to send request: ${error.message}`);
     }
   };
 
@@ -194,14 +188,13 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
           animation: fadeIn 0.2s ease-out; transform-origin: top right;
         }
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        /* Reuse other styles... simplifying for brevity in replacement but essential ones are here */
         .notification-item { padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
         .notification-item:hover { background-color: rgba(255,255,255,0.05); cursor: default; }
         .notification-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
         .notification-action-btn { font-size: 0.75rem; padding: 0.35rem 0.75rem; border-radius: 0.25rem; border: none; cursor: pointer; }
         .btn-accept { background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212,175,55,0.3); }
         .btn-reject { background: rgba(113, 113, 122, 0.15); color: #a1a1aa; border: 1px solid rgba(113,113,122,0.3); }
-    `}</style>
+      `}</style>
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 50, backgroundColor: 'rgba(5, 5, 5, 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <div style={{ width: '100%', maxWidth: '1800px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 30px', gap: '40px' }}>
 
@@ -239,7 +232,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                   )}
                 </div>
               </button>
-
               {showNotifications && (
                 <div className="notification-dropdown">
                   <div style={{ padding: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between' }}>
@@ -259,8 +251,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                               ? `${notif.sender_username} wants to add you as a friend`
                               : notif.message}
                           </p>
-
-                          {/* Actions - Only show if pending and not already resolved in message text */}
                           {notif.type === 'friend_requested' && !notif.message.toLowerCase().includes('you accepted') && !notif.message.toLowerCase().includes('you rejected') && !notif.message.toLowerCase().includes('accepted your') ? (
                             <div className="notification-actions">
                               <button className="notification-action-btn btn-accept" onClick={(e) => handleAction(notif._id, 'accept', e)}>Accept</button>
@@ -273,15 +263,13 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                           )}
                         </div>
                       ))
-                    ) : (
-                      <div style={{ padding: '2rem', textAlign: 'center', color: '#71717a', fontSize: '0.875rem' }}>No new notifications</div>
-                    )}
+                    ) : (<div style={{ padding: '2rem', textAlign: 'center', color: '#71717a', fontSize: '0.875rem' }}>No new notifications</div>)}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* UPDATED: Add Friend Button now opens modal */}
+            {/* Add Friend Button */}
             <button
               onClick={() => setIsModalOpen(true)}
               className="group"
@@ -321,8 +309,6 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                   style={{ width: '100%', backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', padding: '16px', color: '#fff', fontSize: '16px', outline: 'none' }}
                   autoFocus
                 />
-
-                {/* DROPDOWN RESULTS */}
                 {searchResults.length > 0 && !selectedUser && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', maxHeight: '200px', overflowY: 'auto', backgroundColor: '#18181b', border: '1px solid #333', borderRadius: '0 0 12px 12px', zIndex: 50, boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }}>
                     {searchResults.map(u => (
@@ -374,78 +360,70 @@ const ChatsListPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // --- FETCH CONVERSATIONS ---
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Use a merged type that can represent a Friend OR a Conversation
+  interface ChatItem {
+    id: string; // User ID is better for reliable identification
+    username: string;
+    avatar?: string;
+    lastMessage: string;
+    unread: boolean;
+  }
+
+  const [items, setItems] = useState<ChatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Fallback for anonymous user
+  const DEFAULT_AVATAR = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+
   useEffect(() => {
-    const fetchChats = async () => {
+    const fetchData = async () => {
       if (!user) return;
       setIsLoading(true);
       try {
-        const response = await chatApi.getConversations(user.id);
-        const fetchedConversations = response.conversations || [];
+        // 1. Fetch Friends (Source of Truth for "People")
+        const friends = await authApi.getFriends(user.id);
 
-        // Enrich conversations with participant details (handled in UI mapping or assume backend sends it)
-        // Note: The new schema has `other_participants` (array of IDs). 
-        // We ideally need the API to expand these or we fetch users separately.
-        // For this implementation, we'll optimistically assume `participantDetails` might be populated 
-        // OR we map known friends. *However*, the user provided spec just says `other_participants`.
-        // Let's assume for now we might need to fetch names if missing.
+        // 2. Fetch Active Conversations (To get last messages)
+        const chatResponse = await chatApi.getConversations(user.id);
+        const conversations = chatResponse.conversations || [];
 
-        // To keep it simple and fast: We'll map what we have.
-        // In a real app, we'd Promise.all(fetchUser) for each or use a better API endpoint.
+        // 3. Merge Data
+        // Map friends to UI items, filling in message data if a conversation exists
+        const mergedItems = friends.map(friend => {
+          // Find if there is an existing conversation with this friend
+          const conversation = conversations.find(c =>
+            c.other_participants && c.other_participants.includes(friend.id)
+          );
 
-        // Let's try to map the new schema to our UI needs.
-        // We might need to iterate and fetch user details if `participantDetails` is missing.
+          return {
+            id: friend.id,
+            username: friend.username,
+            avatar: friend.avatar || DEFAULT_AVATAR,
+            lastMessage: conversation?.last_message?.content || 'Start a conversation',
+            unread: false // Logic for unread counts can be added later
+          };
+        });
 
-        setConversations(fetchedConversations);
+        setItems(mergedItems);
+
       } catch (error) {
-        console.error("Failed to fetch chats:", error);
+        console.error("Failed to fetch data:", error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchChats();
+    fetchData();
   }, [user]);
 
-  // Placeholder for anonymous user
-  const DEFAULT_AVATAR = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
-
-  const menuItems = conversations.map(chat => {
-    // Fallback logic for user display
-    // If backend doesn't send full user object, we might show "User {ID}" temporarily
-    // But better: use the `other_participants` ID to at least attempt a name if we had a cache.
-    // For now, we'll assume the backend *might* expand it or we use a placeholder.
-    // Actually, looking at `api.ts`, `Conversation` interface has optional `participantDetails`.
-
-    // We'll trust the backend sends a friendly structure or we need to update the backend.
-    // Given the user instructions, let's proceed.
-
-    // Note: The provided `getConversations` response schema in `api.ts` has `other_participants: string[]`.
-    // It does NOT explicitly have `participantDetails` (I added it as optional helper).
-    // If the backend strictly sends IDs, we need to fetch user details.
-    // Let's implement a quick fetch-on-fly or just render IDs if necessary to unblock.
-
-    // *Better approach*: We can't easily show "User ID". 
-    // Let's assume the "other_participants" [0] is the friend ID.
-    const friendId = chat.other_participants?.[0]; // Taking the first one for 1:1 DMs
-    // We don't have the NAME unless we fetch it. 
-    // This is a common gap. I will fetch the user profile if `chat.participantDetails` is missing.
-
-    const participantName = chat.participantDetails?.username || `User ${friendId?.slice(0, 5) || 'Unknown'}`;
-    const avatar = chat.participantDetails?.avatar || DEFAULT_AVATAR;
-
-    return {
-      image: avatar,
-      link: `/chats/${participantName}`, // Navigation by username
-      title: participantName,
-      description: chat.last_message?.content || 'No messages yet',
-      unread: false,
-      id: chat.conversation_id,
-      username: participantName
-    };
-  });
+  // Convert to props for InfiniteMenu
+  const menuItems = items.map(item => ({
+    image: item.avatar || DEFAULT_AVATAR,
+    link: `/chats/${item.username}`,  // Navigation by username as requested
+    title: item.username,
+    description: item.lastMessage,
+    username: item.username,
+    id: item.id
+  }));
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -482,8 +460,9 @@ const ChatsListPage = () => {
             </div>
           ) : (
             <InfiniteMenu
-              items={menuItems}
+              items={menuItems.length > 0 ? menuItems : []}
               activeIndex={activeIndex}
+              scale={1.2}
             />
           )}
         </div>
