@@ -815,12 +815,13 @@ const defaultItems = [
 ];
 
 // --- REACT COMPONENT ---
-export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1 }) {
+export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1, onActiveIndexChange }) {
   const canvasRef = useRef(null);
   const sketchRef = useRef(null);
   const navigate = useNavigate();
   const [activeItem, setActiveItem] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
+  const prevIndexRef = useRef(-1);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -829,7 +830,15 @@ export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1
       // Use the same items array that the WebGL class is using
       const currentItems = items.length ? items : defaultItems;
       const itemIndex = index % currentItems.length;
-      setActiveItem(currentItems[itemIndex]);
+
+      // Only update if changed to prevent render loops
+      if (itemIndex !== prevIndexRef.current) {
+        prevIndexRef.current = itemIndex;
+        setActiveItem(currentItems[itemIndex]);
+        if (onActiveIndexChange) {
+          onActiveIndexChange(itemIndex);
+        }
+      }
     };
 
     if (canvas) {

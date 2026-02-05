@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, useEffect, useRef } from 'react';
+import { useState, type KeyboardEvent, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Search,
@@ -35,6 +35,17 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
   const [friendUsername, setFriendUsername] = useState('');
   const [searchResults, setSearchResults] = useState<{ id: string; username: string; avatar?: string }[]>([]);
   const [selectedUser, setSelectedUser] = useState<{ id: string; username: string; avatar?: string } | null>(null);
+
+  // New: Keyboard Navigation State
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  // Toast State
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000); // Auto-hide after 3 seconds
+  };
 
   // --- NOTIFICATION LOGIC ---
   const getNotificationTitle = (type: Notification['type']) => {
@@ -89,14 +100,14 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
       if (action === 'accept') {
         response = await notificationApi.acceptRequestFromNotification(id);
         if (!response.success) {
-          alert(`Failed to accept: ${response.message || 'Unknown error'}`);
+          showToast(`Failed to accept: ${response.message || 'Unknown error'}`, 'error');
           return;
         }
-        alert(response.message || "Friend request accepted!");
+        showToast(response.message || "Friend request accepted!", 'success');
       } else {
         response = await notificationApi.rejectRequestFromNotification(id);
         if (!response.success) {
-          alert(`Failed to reject: ${response.message || 'Unknown error'}`);
+          showToast(`Failed to reject: ${response.message || 'Unknown error'}`, 'error');
           return;
         }
       }
@@ -104,13 +115,13 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
       if (response.deleted) {
         setNotifications(prev => prev.filter(n => n._id !== id));
       } else {
-        alert("Action succeeded but failed to clear notification. Refreshing...");
+        showToast("Action succeeded but failed to clear notification. Refreshing...", 'error');
         fetchNotifications();
       }
 
     } catch (error: any) {
       console.error(`Failed to ${action} request:`, error);
-      alert(`Failed to ${action} request: ${error.message || error.toString()}`);
+      showToast(`Failed to ${action} request: ${error.message || error.toString()}`, 'error');
     }
   };
 
@@ -126,9 +137,14 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
       if (friendUsername.length >= 2) {
         try {
           const users = await authApi.searchUsers(friendUsername);
-          setSearchResults(users.filter(u => u.username !== user?.username));
+          const filtered = users.filter(u => u.username !== user?.username);
+          setSearchResults(filtered);
+          setHighlightedIndex(filtered.length > 0 ? 0 : -1); // Auto-highlight first item
         } catch (e) { console.error("Search failed", e); }
-      } else { setSearchResults([]); }
+      } else {
+        setSearchResults([]);
+        setHighlightedIndex(-1);
+      }
     }, 300);
     return () => clearTimeout(delayDebounceFn);
   }, [friendUsername, user]);
@@ -137,36 +153,64 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
     setSelectedUser(u);
     setFriendUsername(u.username);
     setSearchResults([]);
+    setHighlightedIndex(-1);
   };
 
-  const handleAddFriend = async () => {
-    let targetId = selectedUser?.id;
-    let targetName = selectedUser?.username;
+  const handleAddFriend = async (overrideUser?: { id: string; username: string }) => {
+    let targetId = overrideUser?.id || selectedUser?.id;
+    let targetName = overrideUser?.username || selectedUser?.username;
 
+    // Try to find an exact match if no user is explicitly selected or passed
     if (!targetId && friendUsername) {
       try {
         const users = await authApi.searchUsers(friendUsername);
         const exactMatch = users.find(u => u.username.toLowerCase() === friendUsername.toLowerCase());
         if (exactMatch) {
           targetId = exactMatch.id;
+          targetName = exactMatch.username;
         }
       } catch (e) { }
     }
 
     if (!targetId || !user) {
-      alert("Please select a valid user from the suggestions.");
+      showToast("Please select a valid user from the suggestions.", "error");
       return;
     }
 
     try {
       await authApi.sendFriendRequest(user.id, targetId);
-      alert(`Friend request sent to ${targetName}`);
+      showToast(`Friend request sent to ${targetName}`, "success");
       setFriendUsername('');
       setSelectedUser(null);
       setIsModalOpen(false);
     } catch (error: any) {
       console.error("Failed to add friend:", error);
-      alert(`Failed to send request: ${error.message}`);
+      showToast(`Failed: ${error.message}`, "error");
+    }
+  };
+
+  // Handle Keyboard Navigation in Friend Search
+  const handleFriendInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (searchResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev + 1) % searchResults.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev - 1 + searchResults.length) % searchResults.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlightedIndex !== -1) {
+          // If user triggered "Enter" on a highlighted item, select it
+          handleSelectUser(searchResults[highlightedIndex]);
+        } else {
+          // Fallback to sending request if no item highlighted (rare due to auto-highlight)
+          handleAddFriend();
+        }
+      }
+    } else if (e.key === 'Enter') {
+      // If no results shown (e.g. user already selected something or typed exact match without waiting/results hidden)
+      handleAddFriend();
     }
   };
 
@@ -194,7 +238,26 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
         .notification-action-btn { font-size: 0.75rem; padding: 0.35rem 0.75rem; border-radius: 0.25rem; border: none; cursor: pointer; }
         .btn-accept { background: rgba(212, 175, 55, 0.15); color: #d4af37; border: 1px solid rgba(212,175,55,0.3); }
         .btn-reject { background: rgba(113, 113, 122, 0.15); color: #a1a1aa; border: 1px solid rgba(113,113,122,0.3); }
+        
+        .toast-popup {
+          position: fixed; top: 120px; right: 30px; z-index: 200;
+          background-color: #111; color: #fff; padding: 16px 24px; border-radius: 12px;
+          border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+          display: flex; align-items: center; gap: 12px; animation: slideIn 0.3s ease-out;
+        }
+        .toast-success { border-left: 4px solid #d4af37; }
+        .toast-error { border-left: 4px solid #ef4444; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
+
+      {/* TOAST NOTIFICATION */}
+      {toast && (
+        <div className={`toast-popup ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>
+          {toast.type === 'success' ? <UserPlus size={20} className="text-[#d4af37]" /> : <X size={20} className="text-red-500" />}
+          <span className="font-medium text-sm">{toast.message}</span>
+        </div>
+      )}
+
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100px', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 50, backgroundColor: 'rgba(5, 5, 5, 0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
         <div style={{ width: '100%', maxWidth: '1800px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 30px', gap: '40px' }}>
 
@@ -305,19 +368,34 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                   type="text"
                   value={friendUsername}
                   onChange={(e) => { setFriendUsername(e.target.value); setSelectedUser(null); }}
+                  onKeyDown={handleFriendInputKeyDown}
                   placeholder="Type username..."
                   style={{ width: '100%', backgroundColor: '#111', border: '1px solid #333', borderRadius: '12px', padding: '16px', color: '#fff', fontSize: '16px', outline: 'none' }}
                   autoFocus
                 />
                 {searchResults.length > 0 && !selectedUser && (
                   <div style={{ position: 'absolute', top: '100%', left: 0, width: '100%', maxHeight: '200px', overflowY: 'auto', backgroundColor: '#18181b', border: '1px solid #333', borderRadius: '0 0 12px 12px', zIndex: 50, boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }}>
-                    {searchResults.map(u => (
+                    {searchResults.map((u, index) => (
                       <div
                         key={u.id}
                         onClick={() => handleSelectUser(u)}
-                        style={{ padding: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', transition: 'background 0.2s' }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#222'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        style={{
+                          padding: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          borderBottom: '1px solid rgba(255,255,255,0.05)',
+                          transition: 'background 0.2s',
+                          backgroundColor: highlightedIndex === index ? '#222' : 'transparent' // Highlight Logic
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#222';
+                          setHighlightedIndex(index);
+                        }}
+                        onMouseLeave={(e) => {
+                          if (highlightedIndex !== index) e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
                       >
                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', backgroundColor: '#333', overflow: 'hidden' }}>
                           {u.avatar ? <img src={u.avatar} alt={u.username} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={16} className="text-zinc-500 m-auto mt-1.5" />}
@@ -338,7 +416,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
                   Cancel
                 </button>
                 <button
-                  onClick={handleAddFriend}
+                  onClick={() => handleAddFriend()}
                   style={{ flex: 1, backgroundColor: '#d4af37', border: 'none', color: '#000', borderRadius: '12px', height: '50px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   <Send size={18} />
@@ -359,6 +437,7 @@ const ChatsListPage = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
+  const [forceScroll, setForceScroll] = useState(0);
 
   // Use a merged type that can represent a Friend OR a Conversation
   interface ChatItem {
@@ -389,18 +468,25 @@ const ChatsListPage = () => {
 
         // 3. Merge Data
         // Map friends to UI items, filling in message data if a conversation exists
-        const mergedItems = friends.map(friend => {
+        const mergedItems = friends.map((friend: any) => {
+          // Normalize Friend ID (API returns user_id, but some parts might use id)
+          const friendId = friend.user_id || friend.id;
+
           // Find if there is an existing conversation with this friend
+          // Robust check: Ensure types match and check for presence
           const conversation = conversations.find(c =>
-            c.other_participants && c.other_participants.includes(friend.id)
+            c.other_participants && c.other_participants.some(pid => String(pid) === String(friendId))
           );
 
+          const lastMsgContent = conversation?.last_message?.content;
+          const isUnread = conversation?.last_message?.sender_id !== user.id && !!lastMsgContent;
+
           return {
-            id: friend.id,
+            id: friendId,
             username: friend.username,
             avatar: friend.avatar || DEFAULT_AVATAR,
-            lastMessage: conversation?.last_message?.content || 'Start a conversation',
-            unread: false // Logic for unread counts can be added later
+            lastMessage: lastMsgContent || 'Start a conversation',
+            unread: isUnread
           };
         });
 
@@ -415,30 +501,52 @@ const ChatsListPage = () => {
     fetchData();
   }, [user]);
 
-  // Convert to props for InfiniteMenu
-  const menuItems = items.map(item => ({
-    image: item.avatar || DEFAULT_AVATAR,
-    link: `/chats/${item.username}`,  // Navigation by username as requested
-    title: item.username,
-    description: item.lastMessage,
-    username: item.username,
-    id: item.id
-  }));
+  // Convert to props for InfiniteMenu (Memoized to prevent flickering on input change)
+  const menuItems = useMemo(() => {
+    let mappedItems = items.map(item => ({
+      image: item.avatar || DEFAULT_AVATAR,
+      link: `/chats/${item.username}`,
+      title: item.username,
+      description: item.lastMessage,
+      username: item.username,
+      id: item.id,
+      unread: item.unread
+    }));
+
+    // Handling Empty State Explicitly
+    if (mappedItems.length === 0 && !isLoading) {
+      mappedItems = [{
+        image: DEFAULT_AVATAR,
+        link: '',
+        title: 'No Friends Yet',
+        description: 'Add a friend to start chatting',
+        username: 'System',
+        id: 'no-friends-placeholder',
+        unread: false
+      }];
+    }
+    return mappedItems;
+  }, [items, isLoading]);
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
     if (value.trim() === '') return;
+
     const index = menuItems.findIndex(item =>
       item.title.toLowerCase().includes(value.toLowerCase())
     );
+
+    // STRICT CHECK: Only update activeIndex if a valid match is found
+    // This prevents the menu from rotating/flickering when typing characters that don't match anyone
     if (index !== -1) {
       setActiveIndex(index);
+      setForceScroll(prev => prev + 1); // Force scroll even if index hasn't changed
     }
   };
 
   const handleEnterKey = () => {
     const targetItem = menuItems[activeIndex];
-    if (targetItem) {
+    if (targetItem && targetItem.id !== 'no-friends-placeholder') {
       navigate(targetItem.link);
     }
   };
@@ -462,6 +570,7 @@ const ChatsListPage = () => {
             <InfiniteMenu
               items={menuItems.length > 0 ? menuItems : []}
               activeIndex={activeIndex}
+              forceScrollTrigger={forceScroll}
               scale={1.2}
             />
           )}
