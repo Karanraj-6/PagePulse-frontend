@@ -134,12 +134,14 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
   // --- ADD FRIEND LOGIC ---
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
-      if (friendUsername.length >= 2) {
+      if (friendUsername.length >= 2 && user) {
         try {
-          const users = await authApi.searchUsers(friendUsername);
+          // Use new filtered search API
+          const users = await authApi.searchNewFriends(friendUsername, user.id);
+          // Filter out self just in case backend doesn't catch it (though it should)
           const filtered = users.filter(u => u.username !== user?.username);
           setSearchResults(filtered);
-          setHighlightedIndex(filtered.length > 0 ? 0 : -1); // Auto-highlight first item
+          setHighlightedIndex(filtered.length > 0 ? 0 : -1);
         } catch (e) { console.error("Search failed", e); }
       } else {
         setSearchResults([]);

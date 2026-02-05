@@ -146,6 +146,17 @@ export const authApi = {
     })) as User[];
   },
 
+  // New filtered search for adding friends
+  searchNewFriends: async (query: string, userId: string) => {
+    const users = await authRequest<any[]>('/addfriends', {
+      params: { q: query, userId },
+    });
+    return users.map(u => ({
+      ...u,
+      id: u.user_id || u.id || u._id,
+    })) as User[];
+  },
+
   getFriends: (userId: string) =>
     authRequest<Friend[]>('/friends', {
       params: { userId },
