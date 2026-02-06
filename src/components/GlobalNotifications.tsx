@@ -89,10 +89,32 @@ const GlobalNotifications = () => {
             }
         };
 
+        const handleNotification = (data: any) => {
+            console.log("GlobalNotifications: Notification Received", data);
+            // Handle Invitation Toast
+            if (data.type === 'invitation') {
+                showToast(data.message || "You have a new book invitation!", 'invitation');
+            }
+            // Handle Friend Request Toast
+            else if (data.type === 'friend_requested') {
+                showToast(data.message || "You have a new friend request!", 'info');
+            }
+            // Handle Friend Acceptance Toast
+            else if (data.type === 'friend_accepted') {
+                showToast(data.message || "Friend request accepted!", 'success');
+            }
+            // Handle Welcome Toast
+            else if (data.type === 'welcome') {
+                showToast(data.message || "Welcome to PagePulse!", 'info');
+            }
+        };
+
         socket.on('receive_private_message', handleReceiveMessage);
+        socket.on('receive_notification', handleNotification);
 
         return () => {
             socket.off('receive_private_message', handleReceiveMessage);
+            socket.off('receive_notification', handleNotification);
         };
     }, [socket, user, location.pathname, showToast]);
 

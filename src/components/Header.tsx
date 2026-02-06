@@ -2,6 +2,7 @@ import { type KeyboardEvent, useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Search, MessageCircle, User, Bell, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import TextPressure from '../components/TextPressure';
 import api, { type Notification } from '../services/api';
 
@@ -22,6 +23,7 @@ const Header = ({
 }: HeaderProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { socket } = useSocket();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const notificationRef = useRef<HTMLDivElement>(null);
@@ -32,6 +34,7 @@ const Header = ({
       case 'friend_requested': return 'Friend Request';
       case 'friend_accepted': return 'Friend Accepted';
       case 'welcome': return 'Welcome';
+      case 'invitation': return 'Book Invitation';
       default: return 'Notification';
     }
   };
@@ -47,10 +50,17 @@ const Header = ({
       }
     };
 
-    if (showNotifications) {
+    if (user) {
       fetchNotifications();
     }
-  }, [showNotifications, user]);
+
+    if (socket) {
+      socket.on('receive_notification', fetchNotifications);
+      return () => {
+        socket.off('receive_notification', fetchNotifications);
+      };
+    }
+  }, [user, socket]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

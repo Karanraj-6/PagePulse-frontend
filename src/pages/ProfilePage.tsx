@@ -112,7 +112,7 @@ const ProfilePage = () => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/auth');
   };
 
   const closePopup = () => {

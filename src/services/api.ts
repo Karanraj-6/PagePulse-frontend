@@ -19,7 +19,10 @@ export const setAuthToken = (token: string) => {
 };
 
 export const clearAuthToken = () => {
-  document.cookie = 'token=; path=/; max-age=0';
+  // Clear with standard path
+  document.cookie = 'token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  // Clear with SameSite matching the setter
+  document.cookie = 'token=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
 };
 
 interface ApiOptions {
@@ -132,7 +135,12 @@ export const authApi = {
 
   getCurrentUser: () => authRequest<User>('/auth/me'),
 
-  logout: () => {
+  logout: async () => {
+    try {
+      await authRequest('/auth/logout', { method: 'POST' });
+    } catch (error) {
+      console.warn("Server-side logout failed (endpoint might be missing)", error);
+    }
     clearAuthToken();
   },
 
@@ -218,6 +226,9 @@ export const chatApi = {
       method: 'POST',
       body: { myId, bookId, friendUsername },
     }),
+
+  // [NEW] Get user details via Chat Service (gRPC proxy to Auth)
+  getChatUser: (userId: string) => chatRequest<User>(`/chatusers/${userId}`),
 
   // [UPDATED] Get list of conversations for a user
   getConversations: (userId: string) => chatRequest<ConversationsResponse>(`/conversations/${userId}`),
@@ -336,7 +347,7 @@ export interface Notification {
   receiver_id: string;
   sender_id: string;
   sender_username: string;
-  type: 'friend_requested' | 'friend_accepted' | 'welcome';
+  type: 'friend_requested' | 'friend_accepted' | 'welcome' | 'invitation';
   message: string;
   read: boolean;
   created_at: string;
@@ -344,7 +355,29 @@ export interface Notification {
 
 // User API
 export const userApi = {
-  getProfile: (userId: string) => authRequest<User>(`/users/${userId}`),
+  getProfile: async (userId: string) => {
+    // Try direct ID fetch first
+    try {
+      return await authRequest<User>(`/users/${userId}`);
+    } catch (err: any) {
+      // If 404, try searching for the ID (backend might not have /users/:id but `q` search might include IDs or we can find by username if we had it)
+      // Since we only have ID, we try passing ID to search.
+      if (err.message && err.message.includes('404')) {
+        console.warn(`getProfile: /users/${userId} failed (404). Falling back to search.`);
+        const users = await authRequest<any[]>('/users', { params: { q: userId } });
+        const found = users.find(u => u.user_id === userId || u.id === userId);
+        if (found) {
+          return {
+            ...found,
+            id: found.user_id || found.id || found._id,
+            username: found.username,
+            avatar: found.avatar
+          } as User;
+        }
+      }
+      throw err;
+    }
+  },
 
   updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
 
@@ -431,10 +464,26 @@ export const notificationApi = {
     }),
 };
 
+// Invitation Service (Port 3007 - likely same as notifications)
+export const invitationApi = {
+  sendInvitation: (senderId: string, receiverId: string, bookId: string, bookTitle: string) =>
+    notificationRequest<{ success: boolean; invitationId: string; notificationId: string }>('/invitations', {
+      method: 'POST',
+      body: { sender_id: senderId, receiver_id: receiverId, book_id: bookId, book_title: bookTitle }
+    }),
+
+  getInvitations: (userId: string) =>
+    notificationRequest<any[]>(`/invitations/${userId}`),
+
+  deleteInvitation: (id: string) =>
+    notificationRequest<void>(`/invitations/${id}`, { method: 'DELETE' }),
+};
+
 export default {
   auth: authApi,
   books: booksApi,
   chat: chatApi,
   user: userApi,
   notifications: notificationApi,
+  invitations: invitationApi,
 };

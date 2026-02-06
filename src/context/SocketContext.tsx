@@ -43,6 +43,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         newSocket.on('connect', () => {
             console.log('✅ Socket connected:', newSocket.id);
+            // Explicitly register user ID with the backend socket map
+            if (user?.id) {
+                newSocket.emit('register', user.id);
+                console.log('📝 Registered socket for user:', user.id);
+            }
             setIsConnected(true);
         });
 

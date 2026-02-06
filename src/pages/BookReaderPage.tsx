@@ -11,13 +11,15 @@ import {
     Search,
     Bell,
     BellOff,
-    Loader2
+    Loader2,
+    Check
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
-import { booksApi, type Book } from '../services/api';
+import { booksApi, userApi, chatApi, authApi, invitationApi, type Book, type User, type Friend } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useToast } from '../context/ToastContext';
 import BookViewer from '../components/BookViewer';
 
 // --- TYPES ---
@@ -35,21 +37,10 @@ interface ChatMessage {
 
 
 
-// --- MOCK DATA ---
-const ACTIVE_READERS = [
-    { id: 'u1', name: "Alice", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice" },
-    { id: 'u2', name: "Bob", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob" },
-    { id: 'u3', name: "Charlie", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie" },
-    { id: 'u4', name: "Dave", img: "" },
-    { id: 'u5', name: "Eve", img: "" }
-];
+// --- MOCK DATA REMOVED ---
+// Active readers are now real-time.
+// Friends list is fetched from API.
 
-const FRIENDS_LIST = [
-    { id: 1, name: "Sarah Connor", username: "@sarah_c", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah" },
-    { id: 2, name: "John Doe", username: "@johnd", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=John" },
-    { id: 3, name: "Emily Blunt", username: "@emily_b", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Emily" },
-    { id: 4, name: "Michael Scott", username: "@best_boss", img: "https://api.dicebear.com/7.x/avataaars/svg?seed=Michael" },
-];
 
 const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
     { id: 1, user: 'Alice', text: 'Wait, did he really just hide in the closet? 😂', isMe: false, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice", page: 1 },
@@ -63,6 +54,9 @@ const BookReaderPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
+    const { showToast } = useToast();
+    const { user, defaultAvatar } = useAuth();
+    const { socket } = useSocket();
 
     // Get book from navigation state (passed from SearchPage/BookDetailPage)
     const bookFromState = (location.state as { book?: Book })?.book;
@@ -94,6 +88,12 @@ const BookReaderPage = () => {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [showMenu, setShowMenu] = useState(false); // Mobile menu
     const [isFriendsOnly, setIsFriendsOnly] = useState(false); // New Toggle State
+    // Friends state for chat filtering & invitations
+    const [friends, setFriends] = useState<Friend[]>([]);
+    const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set()); // For invitation modal
+
+    // Memoize usernames for fast chat filtering
+    const friendUsernames = useMemo(() => new Set(friends.map(f => f.username)), [friends]);
 
     // Notifications
     const [unreadCount, setUnreadCount] = useState(0);
@@ -149,6 +149,22 @@ const BookReaderPage = () => {
             }
         };
     }, []);
+
+    // Fetch friends for invitations & chat filtering
+    useEffect(() => {
+        const fetchFriends = async () => {
+            if (user?.id) {
+                try {
+                    const data = await authApi.getFriends(user.id);
+                    setFriends(data);
+                    console.log("Fetched friends:", data.length);
+                } catch (error) {
+                    console.error("Failed to fetch friends", error);
+                }
+            }
+        };
+        fetchFriends();
+    }, [user?.id]);
 
     // 1. Initial Fetch
     useEffect(() => {
@@ -327,8 +343,70 @@ const BookReaderPage = () => {
     };
 
     // --- SOCKET.IO CHAT INTEGRATION ---
-    const { user, defaultAvatar } = useAuth();
-    const { socket } = useSocket();
+    // Moved hooks to top
+
+    // Active Readers State
+    const [activeReaders, setActiveReaders] = useState<User[]>([]);
+    const [readerCount, setReaderCount] = useState(0);
+    const [showReadersList, setShowReadersList] = useState(false);
+
+    // Fetch user details helper
+    const fetchReaderDetails = async (userId: string) => {
+        if (!userId) return;
+        try {
+            // Don't fetch if we already have them
+            if (activeReaders.some(r => r.id === userId)) return;
+
+            // Use Chat Service proxy to get user details
+            const profile = await chatApi.getChatUser(userId);
+
+            setActiveReaders(prev => {
+                if (prev.some(r => r.id === profile.id)) return prev;
+                return [...prev, profile];
+            });
+        } catch (err) {
+            console.error("Failed to fetch reader profile, using fallback", err);
+            // Fallback: Add with default avatar and ID as name
+            setActiveReaders(prev => {
+                if (prev.some(r => r.id === userId)) return prev;
+                return [...prev, {
+                    id: userId,
+                    username: userId,
+                    avatar: defaultAvatar
+                } as User];
+            });
+        }
+    };
+
+    const handleToggleFriendSelection = (friendId: string) => {
+        const newSet = new Set(selectedFriends);
+        if (newSet.has(friendId)) {
+            newSet.delete(friendId);
+        } else {
+            newSet.add(friendId);
+        }
+        setSelectedFriends(newSet);
+    };
+
+    const handleSendInvitations = async () => {
+        if (selectedFriends.size === 0 || !user || !id || !bookMetadata) return;
+
+        const friendsToInvite = friends.filter(f => selectedFriends.has(f.user_id));
+
+        try {
+            await Promise.all(friendsToInvite.map(friend =>
+                invitationApi.sendInvitation(user.id, friend.user_id, String(id), bookMetadata.title)
+            ));
+            console.log("Invitations sent successfully");
+            setShowInviteModal(false);
+            setSelectedFriends(new Set());
+            // Show toast feedback!
+            showToast(`Sent ${friendsToInvite.length} invitations`, 'success');
+        } catch (error) {
+            console.error("Failed to send invitations", error);
+            showToast("Failed to send invitations", 'error');
+        }
+    };
 
     // Fix: Separate connection logic from listeners to prevent re-connection loops
     useEffect(() => {
@@ -338,13 +416,16 @@ const BookReaderPage = () => {
         socket.emit('join_book_room', { bookId: id, userId: user.id });
         console.log(`Joined book room: ${id}`);
 
+        // Add myself to the list initially
+        setActiveReaders([{ id: user.id, username: user.username, avatar: user.avatar } as User]);
+
         return () => {
             // Leave room on unmount or id change
             socket.emit('leave_book_room', { bookId: id, userId: user.id });
         };
     }, [socket, id, user?.id]); // Minimal dependencies
 
-    // Listeners Effect
+    // Listeners Effect - Separate from connection logic
     useEffect(() => {
         if (!socket) return;
 
@@ -356,15 +437,23 @@ const BookReaderPage = () => {
                 isMe: false,
                 avatar: defaultAvatar,
                 page: currentSpread,
-                isFriendsOnly: msg.isFriendsOnly // Capture the flag
+                isFriendsOnly: msg.isFriendsOnly
             };
 
             if (msg.sender === user?.username) return;
 
+            if (msg.sender === user?.username) return;
+
+            // Filtering Logic: If message is Friends Only, strictly check if sender is a friend
+            if (msg.isFriendsOnly) {
+                // If I am not the sender AND the sender is not in my friends list -> IGNORE
+                if (msg.sender !== user?.username && !friendUsernames.has(msg.sender)) {
+                    return;
+                }
+            }
+
             setMessages(prev => [...prev, newMsg]);
 
-            // Only notify if looking at relevant view? 
-            // Simplified: Notify if chat is closed.
             if (!showChat) {
                 setUnreadCount(prev => prev + 1);
                 if (isPopupEnabled) {
@@ -376,16 +465,62 @@ const BookReaderPage = () => {
 
         const handleUserJoined = (data: { userId: string, count: number }) => {
             console.log("User joined book:", data);
+            setReaderCount(data.count);
+            if (data.userId !== user?.id) {
+                fetchReaderDetails(data.userId);
+            }
+        };
+
+        const handleUserLeft = (data: { userId: string, count: number }) => {
+            console.log("User left book:", data);
+            setReaderCount(data.count);
+            setActiveReaders(prev => prev.filter(u => u.id !== data.userId));
+        };
+
+        const handleActiveUsers = (userIds: any[]) => { // Use any[] to be safe against number/string mix
+            console.log("Received initial active users (raw):", userIds);
+
+            // 1. Update count immediately
+            setReaderCount(userIds.length);
+
+            // 2. Filter out duplicates or myself if already added, ensuring all are strings
+            const uniqueIds = Array.from(new Set(userIds.map(id => String(id))));
+
+            console.log("Processing unique IDs:", uniqueIds);
+
+            // 3. Fetch details for everyone
+            uniqueIds.forEach(uid => {
+                // Ensure compare with string version of user.id
+                if (uid && uid !== String(user?.id)) {
+                    console.log("Fetching details for:", uid);
+                    fetchReaderDetails(uid);
+                }
+            });
         };
 
         socket.on('reading_message', handleReadingMessage);
         socket.on('user_joined_book', handleUserJoined);
+        socket.on('user_left_book', handleUserLeft);
+        socket.on('active_users', handleActiveUsers);
 
         return () => {
             socket.off('reading_message', handleReadingMessage);
             socket.off('user_joined_book', handleUserJoined);
+            socket.off('user_left_book', handleUserLeft);
+            socket.off('active_users', handleActiveUsers);
         };
-    }, [socket, user?.username, showChat, isPopupEnabled, currentSpread]);
+    }, [socket, user?.username, user?.id]); // Removed showChat/messages dependencies to prevent listener re-binding
+
+    // Request active users on mount/connection with a slight delay to ensure join is processed
+    useEffect(() => {
+        if (socket && id && user?.id) {
+            const timer = setTimeout(() => {
+                console.log("Requesting active users list...");
+                socket.emit('request_active_users', { bookId: id });
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [socket, id, user?.id]);
     // Dependencies here just affect closure values for incoming msg handling (like showChat state)
 
 
@@ -461,11 +596,14 @@ const BookReaderPage = () => {
     const handleNext = useCallback(() => bookRef.current?.pageFlip().flipNext(), []);
     const handlePrev = useCallback(() => bookRef.current?.pageFlip().flipPrev(), []);
 
+    // Derived state for "+X" others
+    const extraCount = Math.max(0, readerCount - activeReaders.length);
+
     return (
         <div className="min-h-screen w-full bg-[#050505] flex flex-col font-sans text-white overflow-hidden selection:bg-[#d4af37] selection:text-black">
 
             {/* HEADER */}
-            <header className="flex-none h-16 bg-[#050505] border-b border-white/10 px-6 flex items-center justify-between z-50 relative">
+            <header className="flex-none h-16 bg-[#050505] border-b border-white/10 px-6 flex items-center justify-between z-[9999] relative">
                 <div className="flex items-center gap-4">
                     <button onClick={() => navigate(-1)} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/5 border border-white/10 hover:border-[#d4af37] transition-colors"><ArrowLeft className="w-5 h-5" /></button>
                     <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`w-10 h-10 flex items-center justify-center rounded-full border border-white/10 transition-colors ${isSidebarOpen ? 'bg-[#d4af37] text-black' : 'bg-white/5'}`}><Menu className="w-5 h-5" /></button>
@@ -476,19 +614,43 @@ const BookReaderPage = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div style={{ display: 'flex', alignItems: 'center', marginRight: '16px' }}>
-                        {ACTIVE_READERS.slice(0, 3).map((user, index) => (
-                            <div key={user.id} style={{ marginLeft: index === 0 ? 0 : '-15px', zIndex: index, position: 'relative' }}>
+                    {/* ACTIVE READERS GROUP - Fix pointer events and z-index */}
+                    <div
+                        className="flex items-center mr-4 cursor-pointer hover:opacity-80 transition-opacity relative z-50 pointer-events-auto"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowReadersList(true);
+                            console.log("Avatar group clicked, opening list");
+                        }}
+                        title="View all active readers"
+                    >
+                        {activeReaders.slice(0, 5).map((u, index) => (
+                            <div key={u.id || index} style={{ marginLeft: index === 0 ? 0 : '-15px', zIndex: index, position: 'relative' }}>
                                 <Avatar className="w-10 h-10 border-[3px] border-[#050505]">
-                                    <AvatarImage src={user.img} alt={user.name} />
+                                    <AvatarImage src={u.avatar} alt={u.username} />
                                     <AvatarFallback className="bg-zinc-800">
                                         <img src={defaultAvatar} alt="Default" className="h-full w-full object-cover" />
                                     </AvatarFallback>
                                 </Avatar>
                             </div>
                         ))}
-                        {ACTIVE_READERS.length > 3 && (
-                            <div style={{ marginLeft: '-15px', zIndex: 10, width: '40px', height: '40px', borderRadius: '999px', border: '3px solid #050505', backgroundColor: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: '#a1a1aa', position: 'relative' }}>+{ACTIVE_READERS.length - 3}</div>
+                        {/* Fallback to show at least me if list is empty */}
+                        {activeReaders.length === 0 && user && (
+                            <div style={{ zIndex: 0, position: 'relative' }}>
+                                <Avatar className="w-10 h-10 border-[3px] border-[#050505]">
+                                    <AvatarImage src={user.avatar} alt={user.username} />
+                                    <AvatarFallback className="bg-zinc-800">
+                                        <img src={defaultAvatar} alt="Default" className="h-full w-full object-cover" />
+                                    </AvatarFallback>
+                                </Avatar>
+                            </div>
+                        )}
+
+                        {(activeReaders.length > 3 || extraCount > 0) && (
+                            <div style={{ marginLeft: '-15px', zIndex: 10, width: '40px', height: '40px', borderRadius: '999px', border: '3px solid #050505', backgroundColor: '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 'bold', color: '#a1a1aa', position: 'relative' }}>
+                                +{Math.max(activeReaders.length - 3, 0) + extraCount}
+                            </div>
                         )}
                     </div>
 
@@ -698,53 +860,106 @@ const BookReaderPage = () => {
                 )
             }
 
-            {/* INVITE MODAL */}
+            {/* INVITE MODAL - Updated Multi-select UI */}
             {
                 showInviteModal && (
                     <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                        <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ backgroundColor: '#0a0a0a', width: '100%', maxWidth: '450px', borderRadius: '16px', border: '1px solid rgba(212, 175, 55, 0.3)', boxShadow: '0 0 40px rgba(212, 175, 55, 0.1)', padding: '30px', position: 'relative', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>{inviteMode === 'direct' ? 'Invite Friend' : 'Select Friend'}</h3>
+                                <h3 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>Invite Friends</h3>
                                 <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', display: 'flex', alignItems: 'center' }}><X className="w-6 h-6 hover:text-white transition-colors" /></button>
                             </div>
-                            {inviteMode === 'direct' && (
-                                <>
-                                    <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '25px', lineHeight: '1.5' }}>Share this reading session by entering a username or email directly.</p>
-                                    <div style={{ position: 'relative', marginBottom: '25px' }}>
-                                        <input type="text" placeholder="Enter username or email..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '14px', paddingRight: '50px', color: '#fff', fontSize: '1rem', outline: 'none', boxSizing: 'border-box' }} onFocus={(e) => e.currentTarget.style.borderColor = '#d4af37'} onBlur={(e) => e.currentTarget.style.borderColor = '#333'} />
-                                        <button onClick={() => setInviteMode('friends')} title="Select from Friends List" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#d4af37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}><Users className="w-5 h-5 hover:text-white transition-colors" /></button>
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '15px' }}>
-                                        <button onClick={handleCloseModal} style={{ flex: 1, backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '14px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem', transition: 'background 0.2s' }}>Send Invite</button>
-                                        <button onClick={handleCloseModal} style={{ padding: '14px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
-                                    </div>
-                                </>
-                            )}
-                            {inviteMode === 'friends' && (
-                                <>
-                                    <div style={{ position: 'relative', marginBottom: '20px' }}>
-                                        <input type="text" placeholder="Search friends..." style={{ width: '100%', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', padding: '10px 10px 10px 40px', color: '#fff', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
-                                        <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 transform -translate-y-1/2" />
-                                    </div>
-                                    <div style={{ flex: 1, maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                        {FRIENDS_LIST.map(friend => (
-                                            <div key={friend.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '8px', border: '1px solid #222', backgroundColor: '#111' }}>
+
+                            <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '20px' }}>Select friends to invite to this reading session.</p>
+
+                            <div style={{ flex: 1, overflowY: 'auto', marginBottom: '25px', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+                                {friends.length === 0 ? (
+                                    <div className="text-zinc-500 text-center py-8">No friends found. Add friends from your profile!</div>
+                                ) : (
+                                    friends.map(friend => {
+                                        const isSelected = selectedFriends.has(friend.user_id);
+                                        return (
+                                            <div
+                                                key={friend.user_id}
+                                                onClick={() => handleToggleFriendSelection(friend.user_id)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', borderRadius: '8px',
+                                                    backgroundColor: isSelected ? 'rgba(212, 175, 55, 0.1)' : '#111',
+                                                    border: isSelected ? '1px solid #d4af37' : '1px solid #222',
+                                                    cursor: 'pointer', transition: 'all 0.2s'
+                                                }}
+                                            >
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                    <Avatar className="w-10 h-10 border border-white/10"><AvatarImage src={friend.img} /><AvatarFallback>{friend.name[0]}</AvatarFallback></Avatar>
-                                                    <div><p style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.name}</p><p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>{friend.username}</p></div>
+                                                    <Avatar className="w-10 h-10 border border-white/10">
+                                                        <AvatarImage src={friend.avatar || defaultAvatar} />
+                                                        <AvatarFallback>{friend.username[0]}</AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p style={{ color: isSelected ? '#d4af37' : '#fff', fontWeight: 'bold', fontSize: '0.9rem', margin: 0 }}>{friend.username}</p>
+                                                    </div>
                                                 </div>
-                                                <button onClick={handleCloseModal} style={{ backgroundColor: 'transparent', border: '1px solid #d4af37', color: '#d4af37', padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>Invite</button>
+                                                <div style={{
+                                                    width: '20px', height: '20px', borderRadius: '4px',
+                                                    border: isSelected ? 'none' : '2px solid #444',
+                                                    backgroundColor: isSelected ? '#d4af37' : 'transparent',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                }}>
+                                                    {isSelected && <Check className="w-3 h-3 text-black" />}
+                                                </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                    <button onClick={() => setInviteMode('direct')} style={{ width: '100%', padding: '12px', backgroundColor: '#222', color: '#ccc', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>Back to Manual Entry</button>
-                                </>
-                            )}
+                                        );
+                                    })
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '15px' }}>
+                                <button onClick={handleCloseModal} style={{ padding: '12px 20px', backgroundColor: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: '500' }}>Cancel</button>
+                                <button
+                                    onClick={handleSendInvitations}
+                                    disabled={selectedFriends.size === 0}
+                                    style={{ flex: 1, backgroundColor: selectedFriends.size > 0 ? '#d4af37' : '#333', color: selectedFriends.size > 0 ? '#000' : '#888', border: 'none', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: selectedFriends.size > 0 ? 'pointer' : 'not-allowed', fontSize: '1rem', transition: 'background 0.2s' }}
+                                >
+                                    Send Invitations {selectedFriends.size > 0 && `(${selectedFriends.size})`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )
             }
-        </div >
+            {/* READERS LIST MODAL */}
+            {showReadersList && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setShowReadersList(false)}>
+                    <div style={{ backgroundColor: '#0f0f0f', width: '100%', maxWidth: '400px', maxHeight: '80vh', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#18181b' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Users className="w-5 h-5 text-[#d4af37]" />
+                                <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#fff', margin: 0 }}>Active Readers ({readerCount})</h3>
+                            </div>
+                            <button onClick={() => setShowReadersList(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}><X className="w-5 h-5 hover:text-white" /></button>
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {activeReaders.map(reader => (
+                                <div key={reader.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px', borderRadius: '8px', backgroundColor: '#18181b', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                    <Avatar className="w-10 h-10 border border-white/10">
+                                        <AvatarImage src={reader.avatar || defaultAvatar} />
+                                        <AvatarFallback className="bg-[#27272a]">{reader.username[0]}</AvatarFallback>
+                                    </Avatar>
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ color: '#fff', fontWeight: 'bold', margin: 0, fontSize: '0.95rem' }}>{reader.username}</p>
+                                        <p style={{ color: '#666', fontSize: '0.8rem', margin: 0 }}>Reading now</p>
+                                    </div>
+                                    {reader.id === user?.id && (
+                                        <span style={{ fontSize: '0.7rem', backgroundColor: '#d4af37', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>YOU</span>
+                                    )}
+                                </div>
+                            ))}
+
+                            {/* Ghost rows removed as per user request */}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };
 

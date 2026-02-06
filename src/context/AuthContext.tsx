@@ -28,18 +28,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      console.log("=== 🔐 AUTH CHECK START ===");
+      console.log("===  AUTH CHECK START ===");
       try {
         const userData = await authApi.getCurrentUser();
-        console.log("✅ Auth check SUCCESS - User:", userData.username);
+        console.log("Auth check SUCCESS - User:", userData.username);
         setUser(userData);
       } catch (error: any) {
-        console.log("❌ Auth check FAILED");
+        console.log("Auth check FAILED");
         console.log("Error details:", error?.message || error);
         setUser(null);
       } finally {
         setIsLoading(false);
-        console.log("=== 🔐 AUTH CHECK END ===");
+        console.log("===  AUTH CHECK END ===");
       }
     };
     initAuth();
@@ -100,10 +100,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const logout = () => {
-    authApi.logout();
+  const logout = async () => {
+    await authApi.logout();
     setUser(null);
-    window.location.reload();
+    window.location.href = '/auth'; // Use href to ensure full reload/redirect
   };
 
   return (
