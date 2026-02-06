@@ -22,7 +22,7 @@ const Header = ({
   title,
 }: HeaderProps) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, defaultAvatar, handleAvatarError } = useAuth();
   const { socket } = useSocket();
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -489,15 +489,12 @@ const Header = ({
                 transition: 'all 0.3s ease',
               }}
             >
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={user.username}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <User className="w-7 h-7 text-white" />
-              )}
+              <img
+                src={user?.avatar || defaultAvatar}
+                alt={user?.username || 'Profile'}
+                onError={handleAvatarError}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
             </button>
           </div>
         </div>

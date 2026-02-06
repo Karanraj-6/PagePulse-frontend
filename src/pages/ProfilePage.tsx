@@ -6,7 +6,7 @@ import TextPressure from '../components/TextPressure';
 // @ts-ignore
 import Lanyard from '../components/Lanyard';
 import { useAuth } from '../context/AuthContext';
-import { authApi, userApi } from '../services/api';
+import { authApi, userApi, booksApi, type Book as BookType } from '../services/api';
 
 const ProfilePage = () => {
   const navigate = useNavigate();
@@ -30,10 +30,14 @@ const ProfilePage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
+  // Favorites State
+  const [favorites, setFavorites] = useState<BookType[]>([]);
+
   // Fetch extra data on mount
   useEffect(() => {
     if (user?.id) {
       fetchFriends();
+      fetchFavorites();
     }
   }, [user?.id]);
 
@@ -49,15 +53,42 @@ const ProfilePage = () => {
     }
   };
 
-  // --- DUMMY DATA FOR FAVORITES (Not yet in API) ---
-  const favorites = [
-    { id: 1, title: 'The Great Gatsby' },
-    { id: 2, title: '1984 - George Orwell' },
-    { id: 3, title: 'Harry Potter' },
-    { id: 4, title: 'The Hobbit' },
-    { id: 5, title: 'Pride and Prejudice' },
-    { id: 6, title: 'The Alchemist' }
-  ];
+  const fetchFavorites = async () => {
+    try {
+      const ids: number[] = await authApi.getFavorites();
+
+      if (ids && ids.length > 0) {
+        // Fetch full book details for each ID
+        const bookPromises = ids.map(id => booksApi.getById(String(id)));
+        const books = await Promise.all(bookPromises);
+        setFavorites(books);
+      } else {
+        setFavorites([]);
+      }
+    } catch (error) {
+      console.error("Failed to fetch favorites", error);
+      setFavorites([]);
+    }
+  };
+
+  const handleRemoveFavorite = async (e: React.MouseEvent, bookId: string) => {
+    e.stopPropagation(); // Prevent navigation
+
+    // Optimistic update
+    const previousFavorites = favorites;
+    setFavorites(prev => prev.filter(b => String(b.id || b._id) !== String(bookId)));
+
+    try {
+      await authApi.removeFavorite(bookId);
+    } catch (error: any) {
+      console.error("Failed to remove favorite", error);
+      // If error is NOT 404 (Not Found), revert the change.
+      // If it IS 404, it means it's already gone, so we keep the optimistic removal.
+      if (error.response?.status !== 404) {
+        setFavorites(previousFavorites);
+      }
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -302,15 +333,44 @@ const ProfilePage = () => {
               overflowY: 'auto'
             }}>
               {activePopup === 'favorites' ? (
-                favorites.map(book => (
-                  <button
-                    key={book.id}
-                    onClick={() => navigate(`/read/${book.id}`)}
-                    style={itemButtonStyle}
-                  >
-                    {book.title}
-                  </button>
-                ))
+                favorites.length > 0 ? (
+                  favorites.map(book => (
+                    <div
+                      key={book.id || book._id}
+                      onClick={() => navigate(`/books/${book.id || book._id}/${book.title}/details`)}
+                      style={{
+                        ...itemButtonStyle,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span>{book.title}</span>
+                      <button
+                        onClick={(e) => handleRemoveFavorite(e, String(book.id || book._id))}
+                        style={{
+                          background: 'rgba(239, 68, 68, 0.1)',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          color: '#ef4444',
+                          borderRadius: '50%',
+                          width: '32px',
+                          height: '32px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ color: '#71717a', textAlign: 'center', padding: '2rem' }}>
+                    No favorites yet.
+                  </div>
+                )
               ) : activePopup === 'friends' ? (
                 friends.map((name, i) => (
                   <div key={i} style={itemStyle}>{name}</div>
@@ -427,8 +487,9 @@ const ProfilePage = () => {
             </div>
           </div>
         </div>
-      )}
-    </div>
+      )
+      }
+    </div >
   );
 };
 

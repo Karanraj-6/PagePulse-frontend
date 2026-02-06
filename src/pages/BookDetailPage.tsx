@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { booksApi, type Book } from '../services/api';
+import { booksApi, type Book, authApi } from '../services/api';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Star, Clock, BookOpen, Heart, Share2, Download, Languages, Headphones, FileText } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { ArrowLeft, BookOpen, Heart, Share2, Download, Languages, FileText } from 'lucide-react';
 import Header from '../components/Header';
 import TiltedCard from '../components/TiltedCard';
 import bgImage from '../assets/lp.jpg';
-
-
 
 const BookDetailPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
+    // Removed unused user
+    useAuth();
 
     // Get book from navigation state (passed from SearchPage)
     const bookFromState = (location.state as { book?: Book })?.book;
@@ -63,6 +64,47 @@ const BookDetailPage = () => {
 
         fetchBook();
     }, [id, bookFromState]);
+
+    useEffect(() => {
+        const checkFavoriteStatus = async () => {
+            if (book) {
+                try {
+                    const favIds = await authApi.getFavorites();
+                    // Convert everything to string for safe comparison
+                    const isFav = favIds.some(id => String(id) === String(book.id || book._id));
+                    setIsFavorite(isFav);
+                } catch (e) {
+                    console.error("Failed to check favorite status", e);
+                }
+            }
+        };
+        checkFavoriteStatus();
+    }, [book]);
+
+    const handleFavoriteClick = async () => {
+        if (!book) return;
+
+        // Optimistic update
+        const newStatus = !isFavorite;
+        setIsFavorite(newStatus);
+
+        const bookId = book.id || book._id;
+
+        try {
+            if (newStatus) {
+                await authApi.addFavorite(bookId!); // ! because we checked book exists
+            } else {
+                await authApi.removeFavorite(bookId!);
+            }
+        } catch (error: any) {
+            console.error("Failed to update favorite status", error);
+            // If error is 404 on remove, it means it's already removed, so don't revert.
+            // But if it's 404 on add, or any other error, revert.
+            if (!(!newStatus && error.response?.status === 404)) {
+                setIsFavorite(!newStatus); // Revert
+            }
+        }
+    };
 
     if (isLoading) {
         return (
@@ -265,7 +307,7 @@ const BookDetailPage = () => {
                                         paddingLeft: '1.5rem',
                                         paddingRight: '1.5rem'
                                     }}
-                                    
+
                                 >
                                     <BookOpen className="w-5 h-5" />
                                     Start Reading
@@ -274,7 +316,7 @@ const BookDetailPage = () => {
                                 {/* Icon Buttons Container */}
                                 <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
                                     <button
-                                        onClick={() => setIsFavorite(!isFavorite)}
+                                        onClick={handleFavoriteClick}
                                         className={`transition-all duration-300 ${isFavorite ? 'bg-red-500/10 border-red-500 text-red-500' : 'bg-white/5 border-white/10 hover:border-[#d4af37] hover:text-[#d4af37] text-white'}`}
                                         style={{
                                             height: '4rem',

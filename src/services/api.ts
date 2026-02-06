@@ -176,6 +176,20 @@ export const authApi = {
       method: 'POST',
       body: { myId, targetId, action: 'add' },
     }),
+
+  // Favorites
+  getFavorites: () =>
+    authRequest<number[]>('/favorites'),
+
+  addFavorite: (bookId: string | number) =>
+    authRequest<{ success: boolean; message: string }>(`/favorites/${bookId}`, {
+      method: 'POST',
+    }),
+
+  removeFavorite: (bookId: string | number) =>
+    authRequest<{ success: boolean }>(`/favorites/${bookId}`, {
+      method: 'DELETE',
+    }),
 };
 
 // Book Service
@@ -208,7 +222,8 @@ export const booksApi = {
         title: book.title,
         authors: book.authors,
         formats: book.formats,
-        download_count: book.download_count
+        download_count: book.download_count,
+        summaries: book.summaries || []
       }
     }),
 };
@@ -270,7 +285,8 @@ export interface Author {
 }
 
 export interface Book {
-  id: number;
+  id: number | string;
+  _id?: string;
   title: string;
   authors: Author[];
   subjects: string[];

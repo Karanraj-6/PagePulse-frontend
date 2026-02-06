@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ShoppingBag, Flame, Download, Star } from 'lucide-react';
+import { Flame, Download } from 'lucide-react';
 import Header from '../components/Header';
-import { booksApi, type Book } from '../services/api';
+import { booksApi, type Book as BookType } from '../services/api';
 
 const HomePage = () => {
     const navigate = useNavigate();
     const [searchValue, setSearchValue] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
     const [categories, setCategories] = useState<string[]>([]);
-    const [trendingBooks, setTrendingBooks] = useState<Book[]>([]);
-    const [categoryBooks, setCategoryBooks] = useState<Book[]>([]);
+    const [trendingBooks, setTrendingBooks] = useState<BookType[]>([]);
+    const [categoryBooks, setCategoryBooks] = useState<BookType[]>([]);
 
     const categoryScrollRef = useRef<HTMLDivElement>(null);
     const isScrolling = useRef(false);
@@ -165,8 +165,8 @@ const HomePage = () => {
                             className="flex gap-6 overflow-x-auto pb-20 snap-x hide-scrollbar"
                             style={{ scrollBehavior: 'smooth', minHeight: '550px' }}
                         >
-                            {trendingBooks.length > 0 ? trendingBooks.map((book) => (
-                                <div key={`trending-${book.id}`} className="w-[18rem] shrink-0 snap-start">
+                            {trendingBooks.length > 0 ? trendingBooks.map((book, index) => (
+                                <div key={`trending-${book.id}-${index}`} className="w-[18rem] shrink-0 snap-start">
                                     <BookCard book={book} />
                                 </div>
                             )) : (
@@ -289,7 +289,7 @@ const BookCard = ({ book }: { book: Book }) => {
             .replace(/--+/g, '-');
     };
 
-    const coverImage = book.formats?.['image/jpeg'] || book.coverImage || "https://placehold.co/300x450?text=No+Cover";
+    const coverImage = book.formats?.['image/jpeg'] || "https://placehold.co/300x450?text=No+Cover";
     const authorName = book.authors?.map(a => a.name).join(', ') || 'Unknown Author';
 
     return (
