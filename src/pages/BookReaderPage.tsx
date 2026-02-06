@@ -429,13 +429,13 @@ const BookReaderPage = () => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleReadingMessage = (msg: { sender: string; content: string; time: string; isFriendsOnly?: boolean }) => {
+        const handleReadingMessage = (msg: { sender: string; content: string; time: string; isFriendsOnly?: boolean; avatar?: string }) => {
             const newMsg: ChatMessage = {
                 id: Date.now(),
                 user: msg.sender,
                 text: msg.content,
                 isMe: false,
-                avatar: defaultAvatar,
+                avatar: msg.avatar || defaultAvatar,
                 page: currentSpread,
                 isFriendsOnly: msg.isFriendsOnly
             };
@@ -549,6 +549,7 @@ const BookReaderPage = () => {
             conversationId: `book_${id}`,
             sender: user.username,
             senderId: user.id, // Needed for backend friend lookup
+            avatar: user.avatar, // Send my avatar to others
             content: content,
             // Flag for friends only (Backend needs to support this)
             isFriendsOnly: isFriendsOnly

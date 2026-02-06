@@ -123,17 +123,28 @@ export const authApi = {
       setAuthToken(response.token);
     }
 
+    const avatarUrl = response.user.avatar;
+    const fullAvatarUrl = avatarUrl?.startsWith('/')
+      ? `${AUTH_URL}${avatarUrl}`
+      : avatarUrl;
+
     const user: User = {
       id: response.user.id,
       username: response.user.name,
       email: response.user.email,
-      avatar: response.user.avatar || undefined,
+      avatar: fullAvatarUrl || undefined,
     };
 
     return { user, token: response.token };
   },
 
-  getCurrentUser: () => authRequest<User>('/auth/me'),
+  getCurrentUser: async () => {
+    const user = await authRequest<User>('/auth/me');
+    if (user.avatar?.startsWith('/')) {
+      user.avatar = `${AUTH_URL}${user.avatar}`;
+    }
+    return user;
+  },
 
   logout: async () => {
     try {
@@ -151,6 +162,7 @@ export const authApi = {
     return users.map(u => ({
       ...u,
       id: u.user_id || u.id || u._id, // Handle backend variations
+      avatar: u.avatar?.startsWith('/') ? `${AUTH_URL}${u.avatar}` : u.avatar,
     })) as User[];
   },
 
@@ -162,13 +174,19 @@ export const authApi = {
     return users.map(u => ({
       ...u,
       id: u.user_id || u.id || u._id,
+      avatar: u.avatar?.startsWith('/') ? `${AUTH_URL}${u.avatar}` : u.avatar,
     })) as User[];
   },
 
-  getFriends: (userId: string) =>
-    authRequest<Friend[]>('/friends', {
+  getFriends: async (userId: string) => {
+    const friends = await authRequest<Friend[]>('/friends', {
       params: { userId },
-    }),
+    });
+    return friends.map(f => ({
+      ...f,
+      avatar: f.avatar?.startsWith('/') ? `${AUTH_URL}${f.avatar}` : f.avatar,
+    }));
+  },
 
   // Only 'add' remains on Auth service (port 3001)
   sendFriendRequest: (myId: string, targetId: string) =>
@@ -243,7 +261,13 @@ export const chatApi = {
     }),
 
   // [NEW] Get user details via Chat Service (gRPC proxy to Auth)
-  getChatUser: (userId: string) => chatRequest<User>(`/chatusers/${userId}`),
+  getChatUser: async (userId: string) => {
+    const user = await chatRequest<User>(`/chatusers/${userId}`);
+    if (user.avatar?.startsWith('/')) {
+      user.avatar = `${AUTH_URL}${user.avatar}`;
+    }
+    return user;
+  },
 
   // [UPDATED] Get list of conversations for a user
   getConversations: (userId: string) => chatRequest<ConversationsResponse>(`/conversations/${userId}`),
@@ -398,19 +422,11 @@ export const userApi = {
   updateProfile: (data: Partial<User>) => authRequest<User>('/users/profile', { method: 'PUT', body: data }),
 
   uploadAvatar: async (file: File): Promise<{ success: boolean; avatarUrl: string }> => {
-    const token = getAuthToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-
     const formData = new FormData();
     formData.append('avatar', file);
 
     const response = await fetch(`${AUTH_URL}/users/avatar`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
       credentials: 'include',
       body: formData,
     });
@@ -420,7 +436,11 @@ export const userApi = {
       throw new Error(error.message || error.error || 'Avatar upload failed');
     }
 
-    return response.json();
+    const data = await response.json();
+    if (data.avatarUrl?.startsWith('/')) {
+      data.avatarUrl = `${AUTH_URL}${data.avatarUrl}`;
+    }
+    return data;
   },
 };
 

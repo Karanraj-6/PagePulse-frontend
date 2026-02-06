@@ -253,6 +253,7 @@ const Header = ({ searchValue = '', onSearchChange, onSearchSubmit }: HeaderProp
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       `}</style>
 
+
       {/* TOAST NOTIFICATION */}
       {toast && (
         <div className={`toast-popup ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>

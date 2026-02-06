@@ -100,9 +100,9 @@ const ProfilePage = () => {
       return;
     }
 
-    // Validate file size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadError('File size must be less than 5MB');
+    // Validate file size (2MB max)
+    if (file.size > 2 * 1024 * 1024) {
+      setUploadError('File size must be less than 2MB');
       return;
     }
 
