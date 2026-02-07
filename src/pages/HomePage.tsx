@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Flame, Download } from 'lucide-react';
 import Header from '../components/Header';
 import { booksApi, type Book as BookType } from '../services/api';
+import lp from '@/assets/lp.jpg';
 
 const HomePage = () => {
     const navigate = useNavigate();
@@ -118,7 +119,7 @@ const HomePage = () => {
             <div className="fixed inset-0 z-0 pointer-events-none">
                 <div
                     className="absolute inset-0 bg-cover bg-center opacity-40 blur-sm scale-105"
-                    style={{ backgroundImage: 'url(/src/assets/lp.jpg)' }}
+                    style={{ backgroundImage: `url(${lp})` }}
                 ></div>
             </div>
 

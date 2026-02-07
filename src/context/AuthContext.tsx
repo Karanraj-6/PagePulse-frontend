@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import type { User } from '../services/api';
 import { authApi, setAuthToken } from '../services/api';
 
-import defaultAvatar from '../assets/defaultAvatar.png';
+import defaultAvatar from '@/assets/defaultAvatar.png';
 
 interface AuthContextType {
   user: User | null;

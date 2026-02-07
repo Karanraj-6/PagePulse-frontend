@@ -9,7 +9,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 gsap.registerPlugin(ScrollTrigger);
 
 // FIX: Import the background image so Vite/Webpack processes it correctly
-import bgImage from '../assets/lp.jpg';
+import bgImage from '@/assets/lp.jpg';
 
 // --- GLASSY RESULTS BOARD COMPONENT ---
 interface SearchResultsBoardProps {

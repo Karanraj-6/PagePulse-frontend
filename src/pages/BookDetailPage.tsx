@@ -6,7 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { ArrowLeft, BookOpen, Heart, Share2, Download, Languages, FileText } from 'lucide-react';
 import Header from '../components/Header';
 import TiltedCard from '../components/TiltedCard';
-import bgImage from '../assets/lp.jpg';
+import bgImage from '@/assets/lp.jpg';
 
 const BookDetailPage = () => {
     const { id } = useParams();

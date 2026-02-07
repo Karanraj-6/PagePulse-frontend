@@ -15,6 +15,7 @@ import TextPressure from '../components/TextPressure';
 import { chatApi, authApi, type User, type Message } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import lp from '@/assets/lp.jpg';
 
 interface UIMessage {
     id: string; // unique ID
@@ -363,7 +364,7 @@ const ChatPage = () => {
                         left: 0,
                         width: '100%',
                         height: '100%',
-                        backgroundImage: 'url(/src/assets/lp.jpg)',
+                        backgroundImage: `url(${lp})`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         filter: 'blur(8px)',
