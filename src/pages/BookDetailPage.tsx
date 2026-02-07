@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { booksApi, type Book, authApi } from '../services/api';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { ArrowLeft, BookOpen, Heart, Share2, Download, Languages, FileText } from 'lucide-react';
 import Header from '../components/Header';
 import TiltedCard from '../components/TiltedCard';
@@ -13,6 +14,7 @@ const BookDetailPage = () => {
     const location = useLocation();
     // Removed unused user
     useAuth();
+    const { showToast } = useToast();
 
     // Get book from navigation state (passed from SearchPage)
     const bookFromState = (location.state as { book?: Book })?.book;
@@ -333,6 +335,10 @@ const BookDetailPage = () => {
                                     </button>
 
                                     <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(window.location.href);
+                                            showToast("Link copied to clipboard", "success");
+                                        }}
                                         className="bg-white/5 hover:border-[#d4af37] hover:text-[#d4af37] text-white transition-all"
                                         style={{
                                             height: '4rem',

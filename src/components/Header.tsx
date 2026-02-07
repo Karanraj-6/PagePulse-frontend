@@ -336,6 +336,7 @@ const Header = ({
                 onKeyDown={handleKeyDown}
                 placeholder="Search for a book..."
                 className="
+                liquid-button
                 w-full bg-[#111]
                 border border-white/10
                 text-white text-lg
@@ -348,6 +349,7 @@ const Header = ({
                 shadow-inner
               "
                 style={{
+                  border: '2px solid rgba(255, 255, 255, 0.1)',
                   height: '56px',
                   borderRadius: '9999px',
                   paddingLeft: '60px',
@@ -376,7 +378,8 @@ const Header = ({
             <div className="relative" ref={notificationRef}>
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="notification-bell-btn"
+                className="liquid-button"
+                style={{height: '3.5rem', width: '3.5rem'}}
               >
                 <div style={{ position: 'relative' }}>
                   <Bell className="notification-bell-icon" />
@@ -457,8 +460,9 @@ const Header = ({
             <button
               onClick={() => navigate('/chats')}
               className="liquid-button"
+              style={{height: '3.5rem', width: '9rem'}}
             > Chats
-              <MessageCircle className="w-7 h-7 text-white group-hover:text-[#d4af37] transition-colors " style={{ marginLeft: '0.5rem' }} />
+              <MessageCircle className="w-7 h-7 text-white group-hover:text-[#d4af37] transition-colors "/>
             </button>
 
             <button

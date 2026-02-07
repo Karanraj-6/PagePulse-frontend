@@ -52,51 +52,43 @@ body {
   background: var(--border);
   border-radius: 4px;
 }
-/* =========================
-   BASE BUTTON CONTAINER
-   ========================= */
+/* 1. THE CONTAINER (Cleaned up for GSAP) */
 .liquid-button {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center; 
   gap: 12px;
-  padding: 12px 28px;
-  background: rgba(255, 255, 255, 0.03); /* Subtle dark base */
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 100px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  color: rgb(255, 255, 255);
   font-family: sans-serif;
   font-size: 18px;
   cursor: pointer;
-  overflow: hidden; /* This kills the "square fog" at the edges */
-  transition: transform 0.3s ease;
+  overflow: hidden;
   outline: none;
+  
+  /* IMPORTANT: Only transition the border, NOT the transform. 
+     GSAP handles the transform now. */
+  transition: border-color 0.3s ease; 
 }
 
-/* =========================
-   GLASS & BLUR LAYER
-   ========================= */
+/* 2. THE GLASS BLUR */
 .liquid-button::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  
-  /* The core glass effect */
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  
-  /* Inner "lip" of the glass to define the curve */
   box-shadow: 
     inset 0 1px 2px rgba(255, 255, 255, 0.2),
     inset 0 0 10px rgba(0, 0, 0, 0.2);
-  
   z-index: 0;
 }
 
-/* =========================
-   LIQUID SPECULAR SWEEP (The Highlight)
-   ========================= */
+/* 3. THE LIGHT SWEEP (Keep this from your old code!) */
 .liquid-button::before {
   content: '';
   position: absolute;
@@ -104,65 +96,37 @@ body {
   left: -50%;
   width: 200%;
   height: 200%;
-  
-  /* High contrast highlight for the liquid look */
   background: radial-gradient(
     circle at 50% 50%,
     rgba(255, 255, 255, 0.25) 0%,
     rgba(255, 255, 255, 0.05) 30%,
     transparent 60%
   );
-
   opacity: 0;
   transform: scale(0.5);
-  transition: 
-    opacity 0.5s ease, 
-    transform 0.8s cubic-bezier(0.2, 1, 0.3, 1);
-  
+  transition: opacity 0.5s ease, transform 0.8s cubic-bezier(0.2, 1, 0.3, 1);
   pointer-events: none;
   z-index: 1;
 }
 
-/* =========================
-   CONTENT STYLING
-   ========================= */
+/* 4. CONTENT ALIGNMENT */
 .liquid-button span, 
 .liquid-button .chat-icon {
   position: relative;
   z-index: 2;
-  opacity: 0.9;
+  display: flex;
+  align-items: center;
 }
 
-.chat-icon {
-  width: 22px;
-  height: 22px;
-}
-
-/* =========================
-   INTERACTION PHYSICS
-   ========================= */
+/* 5. HOVER TRIGGERS */
 .liquid-button:hover {
-  animation: liquidHover 0.8s cubic-bezier(.2, 1.3, .3, 1) forwards;
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .liquid-button:hover::before {
   opacity: 1;
   transform: scale(1) translate(15%, 15%);
 }
-
-.liquid-button:active {
-  transform: scale(0.96);
-  transition: transform 0.1s ease;
-}
-
-@keyframes liquidHover {
-  0%   { transform: scale(1); }
-  30%  { transform: scale(1.08); }
-  60%  { transform: scale(1.04); }
-  100% { transform: scale(1.06); }
-}
-
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
 }

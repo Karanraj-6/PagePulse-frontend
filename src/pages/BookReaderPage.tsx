@@ -408,19 +408,20 @@ const BookReaderPage = () => {
 
         const friendsToInvite = friends.filter(f => selectedFriends.has(f.user_id));
 
-        try {
-            await Promise.all(friendsToInvite.map(friend =>
-                invitationApi.sendInvitation(user.id, friend.user_id, String(id), bookMetadata.title)
-            ));
-            console.log("Invitations sent successfully");
-            setShowInviteModal(false);
-            setSelectedFriends(new Set());
-            // Show toast feedback!
-            showToast(`Sent ${friendsToInvite.length} invitations`, 'success');
-        } catch (error) {
-            console.error("Failed to send invitations", error);
-            showToast("Failed to send invitations", 'error');
-        }
+        // Optimistic UI Update: Close modal and show success immediately
+        setShowInviteModal(false);
+        setSelectedFriends(new Set());
+        showToast(`Sent ${friendsToInvite.length} invitations`, 'success');
+
+        // Fire and forget (but log errors)
+        Promise.all(friendsToInvite.map(friend =>
+            invitationApi.sendInvitation(user.id, friend.user_id, String(id), bookMetadata.title)
+        )).then(() => {
+            console.log("Invitations processed in background");
+        }).catch(error => {
+            console.error("Failed to send invitations (background)", error);
+            // Optional: Show error toast if really needed, but might be jarring if modal is ensuring closed.
+        });
     };
 
     // Fix: Separate connection logic from listeners to prevent re-connection loops
@@ -893,10 +894,21 @@ const BookReaderPage = () => {
                             <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '20px' }}>Select friends to invite to this reading session.</p>
 
                             <div style={{ flex: 1, overflowY: 'auto', marginBottom: '25px', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
-                                {friends.length === 0 ? (
-                                    <div className="text-zinc-500 text-center py-8">No friends found. Add friends from your profile!</div>
-                                ) : (
-                                    friends.map(friend => {
+                                {(() => {
+                                    // Filter friends who are NOT already in the activeReaders list
+                                    const availableFriends = friends.filter(friend =>
+                                        !activeReaders.some(reader => String(reader.id) === String(friend.user_id))
+                                    );
+
+                                    if (friends.length === 0) {
+                                        return <div className="text-zinc-500 text-center py-8">No friends found. Add friends from your profile!</div>;
+                                    }
+
+                                    if (availableFriends.length === 0) {
+                                        return <div className="text-zinc-500 text-center py-8">All your friends are already here! 🎉</div>;
+                                    }
+
+                                    return availableFriends.map(friend => {
                                         const isSelected = selectedFriends.has(friend.user_id);
                                         return (
                                             <div
@@ -928,8 +940,8 @@ const BookReaderPage = () => {
                                                 </div>
                                             </div>
                                         );
-                                    })
-                                )}
+                                    });
+                                })()}
                             </div>
 
                             <div style={{ display: 'flex', gap: '15px' }}>
