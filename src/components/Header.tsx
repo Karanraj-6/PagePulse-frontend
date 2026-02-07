@@ -456,19 +456,7 @@ const Header = ({
 
             <button
               onClick={() => navigate('/chats')}
-              className="group"
-              style={{
-                width: '7rem',
-                height: '3.5rem',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderRadius: '25%',
-                backgroundColor: '#111',
-                border: '1px solid rgba(255,255,255,0.1)',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-              }}
+              className="liquid-button"
             > Chats
               <MessageCircle className="w-7 h-7 text-white group-hover:text-[#d4af37] transition-colors " style={{ marginLeft: '0.5rem' }} />
             </button>
@@ -502,5 +490,27 @@ const Header = ({
     </>
   );
 };
+
+
+const cornerButtonStyle: React.CSSProperties = {
+  pointerEvents: 'auto',
+  position: 'relative',
+  overflow: 'hidden',
+  display: 'flex',
+  alignItems: 'center',
+  gap: '12px',
+  backgroundColor: 'rgba(255,255,255,0.08)',
+  backdropFilter: 'blur(14px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(14px) saturate(180%)',
+  border: '1px solid rgba(255,255,255,0.18)',
+  padding: '1.2rem 2.2rem',
+  borderRadius: '100px',
+  color: 'white',
+  fontSize: '1.1rem',
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  transition: 'transform 0.45s cubic-bezier(.2,1.2,.4,1), box-shadow 0.45s',
+};
+
 
 export default Header;

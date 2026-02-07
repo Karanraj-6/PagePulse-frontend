@@ -70,6 +70,8 @@ const BookReaderPage = () => {
     const [pages, setPages] = useState<(string | null)[]>([]);
     const [totalPagesCount, setTotalPagesCount] = useState(0);
     const [currentSpread, setCurrentSpread] = useState(0);
+    const currentSpreadRef = useRef(0); // Add ref to fix stale closure in socket
+    useEffect(() => { currentSpreadRef.current = currentSpread; }, [currentSpread]);
     const [isLoading, setIsLoading] = useState(true);
     const [isFetchingBatch, setIsFetchingBatch] = useState(false);
 
@@ -92,8 +94,21 @@ const BookReaderPage = () => {
     const [friends, setFriends] = useState<Friend[]>([]);
     const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set()); // For invitation modal
 
-    // Memoize usernames for fast chat filtering
-    const friendUsernames = useMemo(() => new Set(friends.map(f => f.username)), [friends]);
+    // Memoize friend IDs for robust chat filtering
+    // Use Ref to avoid socket listener stale closures
+    const friendIdsRef = useRef<Set<string>>(new Set());
+    const friendUsernamesRef = useRef<Set<string>>(new Set());
+
+    // Effect to update refs when friends change
+    useEffect(() => {
+        const idSet = new Set(friends.map(f => f.user_id));
+        const usernameSet = new Set(friends.map(f => f.username.toLowerCase()));
+
+        friendIdsRef.current = idSet;
+        friendUsernamesRef.current = usernameSet;
+
+        console.log("Updated Friend IDs Ref:", Array.from(idSet));
+    }, [friends]);
 
     // Notifications
     const [unreadCount, setUnreadCount] = useState(0);
@@ -429,27 +444,29 @@ const BookReaderPage = () => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleReadingMessage = (msg: { sender: string; content: string; time: string; isFriendsOnly?: boolean; avatar?: string }) => {
+        const handleReadingMessage = (msg: { sender: string | { username: string; avatar: string }; senderId?: string; content: string; time: string; isFriendsOnly?: boolean; avatar?: string }) => {
+
+            // Handle sender being an object or string
+            const senderName = typeof msg.sender === 'object' ? msg.sender.username : msg.sender;
+            const senderAvatar = typeof msg.sender === 'object' ? msg.sender.avatar : (msg.avatar || defaultAvatar);
+
             const newMsg: ChatMessage = {
                 id: Date.now(),
-                user: msg.sender,
+                user: senderName,
                 text: msg.content,
                 isMe: false,
-                avatar: msg.avatar || defaultAvatar,
-                page: currentSpread,
+                avatar: senderAvatar || defaultAvatar,
+                page: currentSpreadRef.current, // Use Ref here
                 isFriendsOnly: msg.isFriendsOnly
             };
 
-            if (msg.sender === user?.username) return;
+            if (senderName === user?.username) return;
 
-            if (msg.sender === user?.username) return;
-
-            // Filtering Logic: If message is Friends Only, strictly check if sender is a friend
+            // Filtering Logic: Backend handles delivery only to friends.
+            // Client simply respects the received message.
             if (msg.isFriendsOnly) {
-                // If I am not the sender AND the sender is not in my friends list -> IGNORE
-                if (msg.sender !== user?.username && !friendUsernames.has(msg.sender)) {
-                    return;
-                }
+                console.log(`[Chat] Received Friends-Only message from ${senderName} (${msg.senderId})`);
+                // We do NOT block here anymore because if we received it, the backend authorized it.
             }
 
             setMessages(prev => [...prev, newMsg]);
@@ -544,14 +561,16 @@ const BookReaderPage = () => {
         setChatMessage('');
         setTimeout(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, 100);
 
-        // Emit
+        // Emit matches backend contract // UPDATED PAYLOAD
         socket.emit('reading_message', {
-            conversationId: `book_${id}`,
-            sender: user.username,
-            senderId: user.id, // Needed for backend friend lookup
-            avatar: user.avatar, // Send my avatar to others
+            conversationId: `book_${id}`, // Room ID
+            sender: {
+                id: user.id,
+                username: user.username,
+                avatar: user.avatar
+            },
+            senderId: user.id,
             content: content,
-            // Flag for friends only (Backend needs to support this)
             isFriendsOnly: isFriendsOnly
         });
     };

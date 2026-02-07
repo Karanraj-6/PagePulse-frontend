@@ -139,11 +139,14 @@ export const authApi = {
   },
 
   getCurrentUser: async () => {
-    const user = await authRequest<User>('/auth/me');
+    const user = await authRequest<any>('/auth/me'); // Changed to any to map
     if (user.avatar?.startsWith('/')) {
       user.avatar = `${AUTH_URL}${user.avatar}`;
     }
-    return user;
+    return {
+      ...user,
+      id: user.user_id || user.id || user._id, // Ensure ID is present
+    } as User;
   },
 
   logout: async () => {
