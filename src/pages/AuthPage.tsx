@@ -89,23 +89,20 @@ const AuthPage = () => {
                 <div className="grid grid-cols-2 bg-black/60 p-1 mb-8 rounded-xl border border-white/5 h-14 relative" >
                     {/* Sliding Background Indicator */}
                     <div
-                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#d4af37] rounded-lg shadow-md transition-all duration-500 ease-in-out ${
-                    isLogin ? 'left-1' : 'left-[calc(50%+4px)]'
+                        className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#d4af37] rounded-lg shadow-md transition-all duration-500 ease-in-out ${isLogin ? 'left-1' : 'left-[calc(50%+4px)]'
                             }`}
                     ></div>
 
                     <button
                         onClick={() => setMode('login')}
-                className={`relative z-10 h-full text-base font-bold rounded-lg transition-colors duration-300 ${
-                    isLogin ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'
+                        className={`relative z-10 h-full text-base font-bold rounded-lg transition-colors duration-300 ${isLogin ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'
                             }`}
                     >
                         Login
                     </button>
                     <button
                         onClick={() => setMode('signup')}
-                className={`relative z-10 h-full text-base font-bold rounded-lg transition-colors duration-300 ${
-                    !isLogin ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'
+                        className={`relative z-10 h-full text-base font-bold rounded-lg transition-colors duration-300 ${!isLogin ? 'text-black' : 'text-zinc-500 hover:text-zinc-300'
                             }`}
                     >
                         Sign Up
@@ -119,8 +116,7 @@ const AuthPage = () => {
 
                     {/* USERNAME FIELD (Collapsible) */}
                     <div
-                className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${
-                    !isLogin ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                        className={`grid transition-[grid-template-rows] duration-500 ease-in-out ${!isLogin ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                             }`}
                     >
                         <div className="overflow-hidden">
