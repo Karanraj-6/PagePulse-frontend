@@ -150,6 +150,19 @@ const BookViewer = React.memo(({
                         className="demo-book shadow-2xl"
                         ref={bookRef}
                         onFlip={onFlip}
+                        /* Missing Props Fix */
+                        style={{}}
+                        startPage={0}
+                        drawShadow={true}
+                        flippingTime={1000}
+                        usePortrait={true}
+                        startZIndex={0}
+                        autoSize={true}
+                        clickEventForward={true}
+                        useMouseEvents={true}
+                        swipeDistance={30}
+                        showPageCorners={true}
+                        disableFlipByClick={false}
                     >
                         {memoizedPageContents.map((iframeContent, index) => (
                             <div key={index} className="page bg-[#fdfbf7] h-full border-r border-[#e3d5c6] relative overflow-hidden">

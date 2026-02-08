@@ -2,17 +2,26 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo, Suspense } from 'react';
-import { Canvas, extend, useFrame } from '@react-three/fiber';
+import { Canvas, extend, useFrame, ThreeEvent } from '@react-three/fiber';
 import { useGLTF, useTexture, Environment, Lightformer } from '@react-three/drei';
-import { BallCollider, CuboidCollider, Physics, RigidBody, useRopeJoint, useSphericalJoint } from '@react-three/rapier';
+import { BallCollider, CuboidCollider, Physics, RigidBody, useRopeJoint, useSphericalJoint, RapierRigidBody, RigidBodyProps } from '@react-three/rapier';
 import { MeshLineGeometry, MeshLineMaterial } from 'meshline';
 import * as THREE from 'three';
+import { GLTF } from 'three-stdlib';
 
 // assets
 import cardGLB from '@/assets/lanyard/card.glb';
 import './Lanyard.css';
 
 extend({ MeshLineGeometry, MeshLineMaterial });
+
+// Extend ThreeElements for meshline
+declare module '@react-three/fiber' {
+  interface ThreeElements {
+    meshLineGeometry: any;
+    meshLineMaterial: any;
+  }
+}
 
 interface LanyardProps {
   position?: [number, number, number];
@@ -21,6 +30,20 @@ interface LanyardProps {
   transparent?: boolean;
   profileImageUrl?: string;
 }
+
+// Type the GLTF result
+type GLTFResult = GLTF & {
+  nodes: {
+    card: THREE.Mesh;
+    clip: THREE.Mesh;
+    clamp: THREE.Mesh;
+    profilePicture: THREE.Mesh;
+  };
+  materials: {
+    base: THREE.MeshStandardMaterial;
+    metal: THREE.MeshStandardMaterial;
+  };
+};
 
 // Preload the GLTF model
 useGLTF.preload(cardGLB);
@@ -97,27 +120,27 @@ interface BandProps {
 }
 
 function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }: BandProps) {
-  const band = useRef(null);
-  const fixed = useRef(null);
-  const j1 = useRef(null);
-  const j2 = useRef(null);
-  const j3 = useRef(null);
-  const card = useRef(null);
+  const band = useRef<THREE.Mesh>(null);
+  const fixed = useRef<RapierRigidBody>(null);
+  const j1 = useRef<RapierRigidBody>(null);
+  const j2 = useRef<RapierRigidBody>(null);
+  const j3 = useRef<RapierRigidBody>(null);
+  const card = useRef<RapierRigidBody>(null);
 
   const vec = new THREE.Vector3();
   const dir = new THREE.Vector3();
   const ang = new THREE.Vector3();
   const rot = new THREE.Vector3();
 
-  const segmentProps = {
-    colliders: false,
+  const segmentProps: RigidBodyProps = {
+    colliders: false as any,
     canSleep: true,
     angularDamping: 4,
     linearDamping: 4
   };
 
   // Load GLTF and texture
-  const gltf = useGLTF(cardGLB);
+  const gltf = useGLTF(cardGLB) as unknown as GLTFResult;
   const profileTexture = useTexture(profileImageUrl!);
 
   // Force texture properties and ensure it doesn't preserve aspect ratio
@@ -137,30 +160,30 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
     canvas.width = 1024;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
-    
+
     if (ctx) {
       ctx.fillStyle = '#bb750d';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
+
       ctx.fillStyle = 'white';
       ctx.font = 'bold 60px sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      
+
       // Text with proper spacing
       const label = "PAGEPULSE";
       const spacing = 80; // Add spacing between repetitions
       const totalWidth = ctx.measureText(label).width;
       const repeatDistance = totalWidth + spacing;
-      
+
       // Draw enough repetitions to fill the canvas
       const numRepetitions = Math.ceil(canvas.width / repeatDistance) + 2;
-      
+
       for (let i = 0; i < numRepetitions; i++) {
         ctx.fillText(label, i * repeatDistance, 64);
       }
     }
-    
+
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = 16;
@@ -177,13 +200,14 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
       ])
   );
 
-  const [dragged, drag] = useState(false);
+  const [dragged, drag] = useState<THREE.Vector3 | boolean>(false);
   const [hovered, hover] = useState(false);
 
-  useRopeJoint(fixed, j1, [[0, 0, 0], [0, 0, 0], 1]);
-  useRopeJoint(j1, j2, [[0, 0, 0], [0, 0, 0], 1]);
-  useRopeJoint(j2, j3, [[0, 0, 0], [0, 0, 0], 1]);
-  useSphericalJoint(j3, card, [[0, 0, 0], [0, 1.45, 0]]);
+  // Cast refs to any to avoid strict RefObject<RapierRigidBody> vs RefObject<RapierRigidBody | null> mismatch
+  useRopeJoint(fixed as any, j1 as any, [[0, 0, 0], [0, 0, 0], 1]);
+  useRopeJoint(j1 as any, j2 as any, [[0, 0, 0], [0, 0, 0], 1]);
+  useRopeJoint(j2 as any, j3 as any, [[0, 0, 0], [0, 0, 0], 1]);
+  useSphericalJoint(j3 as any, card as any, [[0, 0, 0], [0, 1.45, 0]]);
 
   useEffect(() => {
     if (!hovered) return;
@@ -208,28 +232,32 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
       });
     }
 
-    if (fixed.current && band.current) {
+    if (fixed.current && band.current && j1.current && j2.current && j3.current) {
       [j1, j2].forEach(ref => {
-        if (!ref.current.lerped)
-          ref.current.lerped = new THREE.Vector3().copy(ref.current.translation());
+        const r = ref.current as any;
+        if (!r.lerped)
+          r.lerped = new THREE.Vector3().copy(r.translation());
 
-        const d = ref.current.lerped.distanceTo(ref.current.translation());
-        ref.current.lerped.lerp(
-          ref.current.translation(),
+        const d = r.lerped.distanceTo(r.translation());
+        r.lerped.lerp(
+          r.translation(),
           delta * (minSpeed + Math.min(1, Math.max(0.1, d)) * (maxSpeed - minSpeed))
         );
       });
 
+      // Safe access
       curve.points[0].copy(j3.current.translation());
-      curve.points[1].copy(j2.current.lerped);
-      curve.points[2].copy(j1.current.lerped);
+      curve.points[1].copy((j2.current as any).lerped);
+      curve.points[2].copy((j1.current as any).lerped);
       curve.points[3].copy(fixed.current.translation());
 
-      band.current.geometry.setPoints(curve.getPoints(isMobile ? 16 : 32));
+      (band.current.geometry as any).setPoints(curve.getPoints(isMobile ? 16 : 32));
 
-      ang.copy(card.current.angvel());
-      rot.copy(card.current.rotation());
-      card.current.setAngvel({ x: ang.x, y: ang.y - rot.y * 0.25, z: ang.z });
+      if (card.current) {
+        ang.copy(card.current.angvel());
+        rot.copy(card.current.rotation());
+        card.current.setAngvel({ x: ang.x, y: ang.y - rot.y * 0.25, z: ang.z });
+      }
     }
   });
 
@@ -238,25 +266,26 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
   return (
     <>
       {/* Fixed anchor point at the top */}
-      <RigidBody ref={fixed} {...segmentProps} type="fixed" position={[0, 4, 0]} />
-      
+      <RigidBody ref={fixed} {...segmentProps} type="fixed" position={[0, 4, 0]} colliders={false as any} />
+
       {/* Joint segments positioned vertically */}
-      <RigidBody position={[0, 3.5, 0]} ref={j1} {...segmentProps}>
+      <RigidBody position={[0, 3.5, 0]} ref={j1} {...segmentProps} colliders={false as any}>
         <BallCollider args={[0.1]} />
       </RigidBody>
-      <RigidBody position={[0, 3, 0]} ref={j2} {...segmentProps}>
+      <RigidBody position={[0, 3, 0]} ref={j2} {...segmentProps} colliders={false as any}>
         <BallCollider args={[0.1]} />
       </RigidBody>
-      <RigidBody position={[0, 2.5, 0]} ref={j3} {...segmentProps}>
+      <RigidBody position={[0, 2.5, 0]} ref={j3} {...segmentProps} colliders={false as any}>
         <BallCollider args={[0.1]} />
       </RigidBody>
-      
+
       {/* Card at the bottom */}
       <RigidBody
         position={[0, 1, 0]}
         ref={card}
         {...segmentProps}
         type={dragged ? 'kinematicPosition' : 'dynamic'}
+        colliders={false as any}
       >
         <CuboidCollider args={[0.8, 1.125, 0.01]} />
         <group
@@ -264,12 +293,15 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
           position={[0, -1.2, -0.05]}
           onPointerOver={() => hover(true)}
           onPointerOut={() => hover(false)}
-          onPointerDown={e => {
-            e.target.setPointerCapture(e.pointerId);
-            drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation())));
+          onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+            // Fix event target casting
+            (e.target as Element).setPointerCapture(e.pointerId);
+            if (card.current) {
+              drag(new THREE.Vector3().copy(e.point).sub(vec.copy(card.current.translation())));
+            }
           }}
-          onPointerUp={e => {
-            e.target.releasePointerCapture(e.pointerId);
+          onPointerUp={(e: ThreeEvent<PointerEvent>) => {
+            (e.target as Element).releasePointerCapture(e.pointerId);
             drag(false);
           }}
         >
@@ -286,16 +318,16 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
             </mesh>
           )}
           {nodes.clip && (
-            <mesh 
-              geometry={nodes.clip.geometry} 
-              material={materials.metal} 
-              material-roughness={0.3} 
+            <mesh
+              geometry={nodes.clip.geometry}
+              material={materials.metal}
+              material-roughness={0.3}
             />
           )}
           {nodes.clamp && (
             <mesh geometry={nodes.clamp.geometry} material={materials.metal} />
           )}
-          
+
           {/* Hide the original profilePicture node with the React logo */}
           {nodes.profilePicture && (
             <mesh
@@ -305,21 +337,21 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
               visible={false}
             />
           )}
-          
+
           {/* Front side profile picture - Stretched to exact card dimensions */}
           <mesh position={[0, 0.52, 0.026]}>
             <planeGeometry args={[0.71, 1]} />
-            <meshBasicMaterial 
-              map={profileTexture} 
+            <meshBasicMaterial
+              map={profileTexture}
               toneMapped={false}
             />
           </mesh>
-          
+
           {/* Back side profile picture - Stretched to exact card dimensions */}
           <mesh position={[0, 0.52, -0.026]} rotation={[0, Math.PI, 0]}>
             <planeGeometry args={[0.71, 1]} />
-            <meshBasicMaterial 
-              map={profileTexture} 
+            <meshBasicMaterial
+              map={profileTexture}
               toneMapped={false}
             />
           </mesh>
@@ -330,10 +362,10 @@ function Band({ maxSpeed = 50, minSpeed = 0, isMobile = false, profileImageUrl }
         <meshLineMaterial
           color="white"
           depthTest={false}
-          resolution={[window.innerWidth, window.innerHeight]}
+          resolution={new THREE.Vector2(typeof window !== 'undefined' ? window.innerWidth : 1000, typeof window !== 'undefined' ? window.innerHeight : 1000)}
           useMap
           map={bandTexture}
-          repeat={[-3, 1]}
+          repeat={new THREE.Vector2(-3, 1)}
           lineWidth={isMobile ? 0.5 : 1}
         />
       </mesh>

@@ -278,7 +278,7 @@ const HomePage = () => {
 };
 
 // Book Card
-const BookCard = ({ book }: { book: Book }) => {
+const BookCard = ({ book }: { book: BookType }) => {
     const navigate = useNavigate();
     const slugify = (text: string | number) => {
         return text
