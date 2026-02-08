@@ -571,7 +571,7 @@ const ChatsListPage = () => {
             </div>
           ) : (
             <InfiniteMenu
-              items={menuItems.length > 0 ? menuItems : [] as any[]}
+              items={menuItems.length > 0 ? menuItems : [] as any}
               activeIndex={activeIndex}
               forceScrollTrigger={forceScroll}
               scale={1.2}

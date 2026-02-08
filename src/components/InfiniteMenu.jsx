@@ -826,7 +826,16 @@ const defaultItems = [
 ];
 
 // --- REACT COMPONENT ---
-export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1, onActiveIndexChange }) {
+/**
+ * @param {{
+ *   items: any[],
+ *   scale?: number,
+ *   activeIndex?: number,
+ *   onActiveIndexChange?: (index: number) => void,
+ *   forceScrollTrigger?: any
+ * }} props
+ */
+export default function InfiniteMenu({ items = [], scale = 1.0, activeIndex = -1, onActiveIndexChange, forceScrollTrigger }) {
   const canvasRef = useRef(null);
   const sketchRef = useRef(null);
   const navigate = useNavigate();
