@@ -12,6 +12,7 @@ import lp3 from "@/assets/lp3.png";
 import lp4 from "@/assets/lp4.jpg";
 import lp5 from "@/assets/lp5.jpeg";
 import lp6 from "@/assets/lp6.jpg";
+import { NoToneMapping } from 'three';
 
 // Register GSAP plugins
 gsap.registerPlugin(ScrollTrigger, ScrollSmoother);
@@ -244,36 +245,14 @@ const LandingPage = () => {
                                 </p>
                             </div>
 
-                            {/* Back to top button - centered and fancy */}
-                            <div className="flex justify-center" style={{ marginBottom: '2rem' }}>
-                                <button
-                                    onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                                    className="group relative rounded-full overflow-hidden border border-zinc-700 hover:border-[#d4af37] transition-all duration-300"
-                                    style={{ paddingLeft: '32px', paddingRight: '32px', paddingTop: '16px', paddingBottom: '16px' }}
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-[#bb750d] via-[#d4af37] to-[#c8d50e] opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
-                                    <span className="relative flex items-center text-gray-300 group-hover:text-white transition-colors duration-300" style={{ gap: '8px' }}>
-                                        <svg className="w-4 h-4 transform group-hover:-translate-y-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                                        </svg>
-                                        Back to top
-                                    </span>
-                                </button>
-                            </div>
-
                             {/* Divider */}
                             <div className="w-full bg-gradient-to-r from-transparent via-zinc-700 to-transparent" style={{ height: '1px', marginBottom: '2rem' }}></div>
 
-                            {/* Bottom section */}
-                            <div className="flex flex-col md:flex-row justify-between items-center" style={{ gap: '32px' }}>
+                            {/* Bottom section - evenly spaced */}
+                            <div className="flex justify-between items-center">
                                 
-                                {/* Copyright */}
-                                <p className="text-gray-500 text-sm order-2 md:order-1">
-                                    &copy; {new Date().getFullYear()} PagePulse. All rights reserved.
-                                </p>
-
-                                {/* GitHub Link with icon */}
-                                <div className="flex order-1 md:order-2" style={{ gap: '24px' }}>
+                                {/* Left: GitHub Link */}
+                                <div className="flex-1 flex justify-start" style={{marginLeft:'10rem'}}>
                                     <a 
                                         href="https://github.com/Karanraj-6/PagePulse" 
                                         target="_blank" 
@@ -287,7 +266,30 @@ const LandingPage = () => {
                                         <span className="text-sm text-gray-400 group-hover:text-white transition-colors">GitHub</span>
                                     </a>
                                 </div>
+                                
+                                {/* Center: Copyright */}
+                                <div className="flex-1 flex justify-center" style={{marginLeft:'-5rem'}}>
+                                    <p className="text-gray-500 text-sm text-center">
+                                        &copy; {new Date().getFullYear()} PagePulse. All rights reserved.
+                                    </p>
+                                </div>
 
+                                {/* Right: Back to top button */}
+                                <div className="flex-1 flex justify-end">
+                                    <button
+                                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                                        className="group relative rounded-full overflow-hidden border border-zinc-700 hover:border-[#d4af37] transition-all duration-300"
+                                        style={{ paddingLeft: '32px', paddingRight: '32px', paddingTop: '16px', paddingBottom: '16px' }}
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-[#bb750d] via-[#d4af37] to-[#c8d50e] opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+                                        <span className="relative flex items-center text-gray-300 group-hover:text-white transition-colors duration-300" style={{ gap: '8px' }}>
+                                            <svg className="w-4 h-4 transform group-hover:-translate-y-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                                            </svg>
+                                            Back to top
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </footer>
