@@ -111,10 +111,10 @@ const notificationRequest = <T>(endpoint: string, options: ApiOptions = {}) =>
 
 // Auth Service
 export const authApi = {
-  register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/auth/register', { method: 'POST', body: data }),
+  register: (data: SignupData) => authRequest<{ userId: string; username: string; token: string }>('/register', { method: 'POST', body: data }),
 
   login: async (email: string, password: string) => {
-    const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/auth/login', {
+    const response = await authRequest<{ token: string; user: { id: string; name: string; email: string; avatar: string | null } }>('/login', {
       method: 'POST',
       body: { username: email, password }
     });
@@ -139,7 +139,7 @@ export const authApi = {
   },
 
   getCurrentUser: async () => {
-    const user = await authRequest<any>('/auth/me'); // Changed to any to map
+    const user = await authRequest<any>('/me'); // Changed to any to map
     if (user.avatar?.startsWith('/')) {
       user.avatar = `${AUTH_URL}${user.avatar}`;
     }
@@ -151,7 +151,7 @@ export const authApi = {
 
   logout: async () => {
     try {
-      await authRequest('/auth/logout', { method: 'POST' });
+      await authRequest('/logout', { method: 'POST' });
     } catch (error) {
       console.warn("Server-side logout failed (endpoint might be missing)", error);
     }
@@ -216,28 +216,28 @@ export const authApi = {
 // Book Service
 export const booksApi = {
   getBooks: (page: number = 1, category?: string, search?: string) =>
-    bookRequest<Book[]>('/books', {
+    bookRequest<Book[]>('/', {
       params: { page, category, search },
     }),
 
-  getTrending: () => bookRequest<Book[]>('/books/trending'),
+  getTrending: () => bookRequest<Book[]>('/trending'),
 
-  getById: (id: string) => bookRequest<Book>(`/books/${id}`),
+  getById: (id: string) => bookRequest<Book>(`/${id}`),
 
   getPages: (id: string, limit: number = 20, offset: number = 0) =>
-    bookRequest<PagesResponse>(`/books/${id}/pages`, {
+    bookRequest<PagesResponse>(`/${id}/pages`, {
       params: { limit, offset },
     }),
 
   getIngestionStatus: (id: string) =>
     bookRequest<{ status: string; message?: string; page_count?: number; error?: string }>(
-      `/books/${id}/ingestion-status`
+      `/${id}/ingestion-status`
     ),
 
   getCategories: () => bookRequest<string[]>('/categories'),
 
   trackBook: (book: Book) =>
-    bookRequest<{ success: boolean }>(`/books/${book.id}/track`, {
+    bookRequest<{ success: boolean }>(`/${book.id}/track`, {
       method: 'POST',
       body: {
         title: book.title,
