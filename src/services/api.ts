@@ -1,8 +1,5 @@
 // API service layer - Connected to Microservices
 
-// API service layer - Connected to Microservices
-
-
 const AUTH_URL = import.meta.env.VITE_AUTH_URL || 'http://localhost:3001';
 const BOOK_URL = import.meta.env.VITE_BOOK_URL || 'http://localhost:3002';
 const CHAT_URL = import.meta.env.VITE_CHAT_URL || 'http://localhost:3003';
