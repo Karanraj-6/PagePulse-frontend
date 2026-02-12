@@ -182,10 +182,12 @@ export const authApi = {
     const friends = await authRequest<Friend[]>('/friends', {
       params: { userId },
     });
-    return friends.map(f => ({
-      ...f,
-      avatar: f.avatar?.startsWith('/') ? `${AUTH_URL}${f.avatar}` : f.avatar,
-    }));
+    return friends
+      .filter(f => f.status === 'accepted') // Only show accepted friends
+      .map(f => ({
+        ...f,
+        avatar: f.avatar?.startsWith('/') ? `${AUTH_URL}${f.avatar}` : f.avatar,
+      }));
   },
 
   // Only 'add' remains on Auth service (port 3001)

@@ -39,7 +39,6 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         // FIX: Connect to Root Domain, not /api/chat
         // Ingress exposes /socket.io at root
         const SOCKET_URL = 'https://68.233.107.28.nip.io';
-        console.log(`🔌 [SocketContext] Attempting connection to: ${SOCKET_URL}`);
 
         const newSocket = io(SOCKET_URL, {
             auth: { token },
@@ -57,12 +56,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             setIsConnected(true);
         });
 
-        newSocket.on('connect_error', (err) => {
-            console.error('❌ Socket Connection Error:', err.message);
-        });
-
-        newSocket.on('disconnect', (reason) => {
-            console.log('❌ Socket disconnected:', reason);
+        newSocket.on('disconnect', () => {
+            console.log('❌ Socket disconnected');
             setIsConnected(false);
         });
 

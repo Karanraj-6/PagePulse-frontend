@@ -70,9 +70,6 @@ const ChatPage = () => {
 
                 // Get conversation ID
                 const { conversationId: cid } = await chatApi.initiatePrivateChat(currentUser.id, target.id);
-                console.log("🟦 [ChatPage] Resolved Conversation ID:", cid);
-                console.log("🟦 [ChatPage] Me:", currentUser.username, "(", currentUser.id, ")");
-                console.log("🟦 [ChatPage] Target:", target.username, "(", target.id, ")");
                 setConversationId(cid);
 
                 // Load initial history
@@ -98,10 +95,7 @@ const ChatPage = () => {
 
                 // Join Socket Room
                 if (socket) {
-                    console.log("🟦 [ChatPage] Emitting join_private_chat for:", cid);
                     socket.emit('join_private_chat', cid);
-                } else {
-                    console.warn("🟧 [ChatPage] Socket not available during initChat");
                 }
 
             } catch (err) {
@@ -120,12 +114,8 @@ const ChatPage = () => {
         if (!socket || !conversationId) return;
 
         const handleReceive = (msg: Message) => {
-            console.log("🟦 [ChatPage] Received message:", msg);
             // Check if this message belongs to current chat
-            if (msg.conversation_id !== conversationId) {
-                console.log("🟧 [ChatPage] Ignored message for diff conversation:", msg.conversation_id);
-                return;
-            }
+            if (msg.conversation_id !== conversationId) return;
 
             setMessages(prev => {
                 // 1. Deduplicate by DB ID
@@ -203,7 +193,6 @@ const ChatPage = () => {
 
         setMessages(prev => [...prev, tempMsg]);
 
-        console.log("🟦 [ChatPage] Sending message:", content, "to ConvID:", conversationId);
         // Emit Socket Event
         socket.emit('send_private_message', {
             conversation_id: conversationId,
