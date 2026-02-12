@@ -107,7 +107,6 @@ const BookReaderPage = () => {
         friendIdsRef.current = idSet;
         friendUsernamesRef.current = usernameSet;
 
-        console.log("Updated Friend IDs Ref:", Array.from(idSet));
     }, [friends]);
 
     // Notifications
@@ -120,7 +119,6 @@ const BookReaderPage = () => {
         if (!id) return;
         try {
             const status = await booksApi.getIngestionStatus(id);
-            console.log('[Poll] Ingestion status:', status);
 
             if (status.status === 'complete') {
                 // Ingestion done - reload pages
@@ -172,7 +170,6 @@ const BookReaderPage = () => {
                 try {
                     const data = await authApi.getFriends(user.id);
                     setFriends(data);
-                    console.log("Fetched friends:", data.length);
                 } catch (error) {
                     console.error("Failed to fetch friends", error);
                 }
@@ -194,7 +191,6 @@ const BookReaderPage = () => {
                 try {
                     bookData = await booksApi.getById(id);
                 } catch (err) {
-                    console.log('[BookReaderPage] getById failed, using book from state');
                     if (bookFromState) {
                         bookData = bookFromState;
                     } else {
@@ -220,13 +216,6 @@ const BookReaderPage = () => {
 
                 const pagesData = await booksApi.getPages(id, BATCH_SIZE, 0);
 
-                console.log('=== DEBUG pagesData ===');
-                console.log('Full response:', pagesData);
-                console.log('_httpStatus:', pagesData._httpStatus);
-                console.log('status:', pagesData.status);
-                console.log('total_pages:', pagesData.total_pages);
-                console.log('pages length:', pagesData.pages?.length);
-
                 // Handle 202 = ingestion in progress OR status indicates processing
                 const isIngestingBook =
                     pagesData._httpStatus === 202 ||
@@ -245,7 +234,6 @@ const BookReaderPage = () => {
                         pollIntervalRef.current = setInterval(pollIngestionStatus, 5000); // Retry every 5 seconds
                     }
                 } else if (pagesData.total_pages > 0 && pagesData.pages && pagesData.pages.length > 0) {
-                    console.log('>>> SUCCESS - Loading', pagesData.total_pages, 'pages');
                     setTotalPagesCount(pagesData.total_pages);
 
                     const totalSlots = pagesData.total_pages + 1;
@@ -285,13 +273,11 @@ const BookReaderPage = () => {
         if (pages[offsetIndex + 1] !== null) return;
 
         setIsFetchingBatch(true);
-        console.log(`Fetching batch starting at ${offsetIndex}...`);
 
         try {
             const data = await booksApi.getPages(id, BATCH_SIZE, offsetIndex);
 
             if (data._httpStatus === 202 || data.status === 'processing' || data.status === 'started') {
-                console.log('[loadBatch] Book still ingesting, skipping batch load');
                 return;
             }
 
@@ -417,7 +403,6 @@ const BookReaderPage = () => {
         Promise.all(friendsToInvite.map(friend =>
             invitationApi.sendInvitation(user.id, friend.user_id, String(id), bookMetadata.title)
         )).then(() => {
-            console.log("Invitations processed in background");
         }).catch(error => {
             console.error("Failed to send invitations (background)", error);
             // Optional: Show error toast if really needed, but might be jarring if modal is ensuring closed.
@@ -430,7 +415,6 @@ const BookReaderPage = () => {
 
         // Join Room ONLY when ID or Socket changes
         socket.emit('join_book_room', { bookId: id, userId: user.id });
-        console.log(`Joined book room: ${id}`);
 
         // Add myself to the list initially
         setActiveReaders([{ id: user.id, username: user.username, avatar: user.avatar } as User]);
@@ -466,7 +450,6 @@ const BookReaderPage = () => {
             // Filtering Logic: Backend handles delivery only to friends.
             // Client simply respects the received message.
             if (msg.isFriendsOnly) {
-                console.log(`[Chat] Received Friends-Only message from ${senderName} (${msg.senderId})`);
                 // We do NOT block here anymore because if we received it, the backend authorized it.
             }
 
@@ -482,7 +465,6 @@ const BookReaderPage = () => {
         };
 
         const handleUserJoined = (data: { userId: string, count: number }) => {
-            console.log("User joined book:", data);
             setReaderCount(data.count);
             if (data.userId !== user?.id) {
                 fetchReaderDetails(data.userId);
@@ -490,13 +472,11 @@ const BookReaderPage = () => {
         };
 
         const handleUserLeft = (data: { userId: string, count: number }) => {
-            console.log("User left book:", data);
             setReaderCount(data.count);
             setActiveReaders(prev => prev.filter(u => u.id !== data.userId));
         };
 
         const handleActiveUsers = (userIds: any[]) => { // Use any[] to be safe against number/string mix
-            console.log("Received initial active users (raw):", userIds);
 
             // 1. Update count immediately
             setReaderCount(userIds.length);
@@ -504,13 +484,11 @@ const BookReaderPage = () => {
             // 2. Filter out duplicates or myself if already added, ensuring all are strings
             const uniqueIds = Array.from(new Set(userIds.map(id => String(id))));
 
-            console.log("Processing unique IDs:", uniqueIds);
 
             // 3. Fetch details for everyone
             uniqueIds.forEach(uid => {
                 // Ensure compare with string version of user.id
                 if (uid && uid !== String(user?.id)) {
-                    console.log("Fetching details for:", uid);
                     fetchReaderDetails(uid);
                 }
             });
@@ -533,7 +511,6 @@ const BookReaderPage = () => {
     useEffect(() => {
         if (socket && id && user?.id) {
             const timer = setTimeout(() => {
-                console.log("Requesting active users list...");
                 socket.emit('request_active_users', { bookId: id });
             }, 500);
             return () => clearTimeout(timer);
@@ -642,7 +619,6 @@ const BookReaderPage = () => {
                             e.preventDefault();
                             e.stopPropagation();
                             setShowReadersList(true);
-                            console.log("Avatar group clicked, opening list");
                         }}
                         title="View all active readers"
                     >

@@ -124,17 +124,14 @@ const ProfilePage = () => {
     setUploadError(null);
 
     try {
-      console.log('📤 Uploading avatar...');
-
       // Upload to S3 via backend
       const response = await userApi.uploadAvatar(selectedFile);
 
-      console.log('✅ Avatar uploaded successfully:', response.avatarUrl);
 
       // Refresh the page to get updated user data
       window.location.reload();
     } catch (error: any) {
-      console.error('❌ Avatar upload failed:', error);
+      console.error(' Avatar upload failed:', error);
       setUploadError(error.message || 'Failed to upload avatar');
     } finally {
       setIsUploading(false);

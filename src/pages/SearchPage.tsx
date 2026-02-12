@@ -262,7 +262,7 @@ const SearchPage = () => {
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="flex items-center align-center justify-center" style={{ width: '100vw', minHeight: 'calc(100vh - 200px)' }}>
+          <div className="flex items-center align-center justify-center" style={{ position: 'fixed', inset: 0, zIndex: 50 }}>
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]" />
           </div>
         ) : allResults.length === 0 ? (

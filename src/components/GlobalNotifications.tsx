@@ -16,7 +16,7 @@ const GlobalNotifications = () => {
 
     // Debug log to confirm component mount
     useEffect(() => {
-        console.log("GlobalNotifications mounted. Socket:", !!socket, "User:", !!user);
+        // Component mounted
     }, [socket, user]);
 
     // Fetch and cache friends list on mount
@@ -29,7 +29,6 @@ const GlobalNotifications = () => {
                     friends.forEach(f => {
                         friendsMap.current[f.user_id] = f.username;
                     });
-                    console.log("GlobalNotifications: Friends cached", Object.keys(friendsMap.current).length);
                 }
             } catch (e) {
                 console.error("GlobalNotifications: Failed to cache friends", e);
@@ -42,7 +41,6 @@ const GlobalNotifications = () => {
         if (!socket || !user) return;
 
         const handleReceiveMessage = async (msg: Message) => {
-            console.log("GlobalNotifications: Message Received", msg);
 
             if (msg.sender_id === user.id) return;
 
@@ -62,24 +60,20 @@ const GlobalNotifications = () => {
                 let senderName = friendsMap.current[msg.sender_id];
 
                 if (!senderName) {
-                    console.log("GlobalNotifications: Sender not in cache, fetching profile...");
                     const senderProfile = await userApi.getProfile(msg.sender_id);
                     senderName = senderProfile.username;
                     // Cache it for next time
                     friendsMap.current[msg.sender_id] = senderName;
                 } else {
-                    console.log("GlobalNotifications: Sender found in cache:", senderName);
+                    // Start logic same as before
                 }
 
-                console.log(`GlobalNotifications: Sender is ${senderName}. Current Chat: ${currentChatUsername}`);
 
                 // Check if we are currently looking at this chat
                 if (currentChatUsername && currentChatUsername.toLowerCase() === senderName.toLowerCase()) {
-                    console.log("GlobalNotifications: Suppressing toast (user active in chat)");
                     return;
                 }
 
-                console.log("GlobalNotifications: Showing Toast");
                 showToast(`${senderName}: ${truncatedContent}`, 'info');
 
             } catch (err) {
@@ -90,7 +84,6 @@ const GlobalNotifications = () => {
         };
 
         const handleNotification = (data: any) => {
-            console.log("GlobalNotifications: Notification Received", data);
             // Handle Invitation Toast
             if (data.type === 'invitation') {
                 showToast(data.message || "You have a new book invitation!", 'invitation');

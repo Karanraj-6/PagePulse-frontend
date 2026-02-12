@@ -28,18 +28,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      console.log("===  AUTH CHECK START ===");
       try {
         const userData = await authApi.getCurrentUser();
-        console.log("Auth check SUCCESS - User:", userData.username);
         setUser(userData);
       } catch (error: any) {
-        console.log("Auth check FAILED");
-        console.log("Error details:", error?.message || error);
         setUser(null);
       } finally {
         setIsLoading(false);
-        console.log("===  AUTH CHECK END ===");
       }
     };
     initAuth();
@@ -52,12 +47,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // 2. Creating a new Image() and setting src forces the browser to download (fetch) the asset
       const img = new Image();
       img.src = user.avatar;
-      console.log('🖼️ [S3 PREFETCH] Downloading avatar from:', user.avatar);
     }
   }, [user?.avatar]);
 
   const login = async (email: string, password: string) => {
-    console.log("LOGIN START");
     setIsLoading(true);
     try {
       const response = await authApi.login(email, password);
@@ -65,11 +58,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Double-check token was set (already done in authApi.login)
       if (response.token) {
-        console.log("Token confirmed in response");
+        // Token confirmed
       }
 
       setUser(response.user);
-      console.log("LOGIN SUCCESS");
     } catch (error) {
       console.error('LOGIN FAILED');
       console.error('Error:', error);
@@ -80,19 +72,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup = async (username: string, email: string, password: string) => {
-    console.log("=== 📝 SIGNUP START ===");
     setIsLoading(true);
     try {
       await authApi.register({ username, email, password });
-      console.log("✅ Registration successful");
 
       // Fetch user data
       const userData = await authApi.getCurrentUser();
-      console.log("✅ User session confirmed:", userData.username);
       setUser(userData);
-      console.log("=== 📝 SIGNUP SUCCESS ===");
     } catch (error) {
-      console.error('=== ❌ SIGNUP FAILED ===');
+      console.error('===  SIGNUP FAILED ===');
       console.error('Error:', error);
       throw error;
     } finally {
