@@ -7,7 +7,7 @@ const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || 'http://localhost:3005
 
 interface SocketContextType {
     socket: Socket | null;
-    isConnected: boolean;   
+    isConnected: boolean;
 }
 
 const SocketContext = createContext<SocketContextType>({
