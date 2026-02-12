@@ -4,7 +4,6 @@ import { useAuth } from './AuthContext';
 import { getAuthToken } from '../services/api';
 
 const CHAT_SERVICE_URL = import.meta.env.VITE_CHAT_URL || 'http://localhost:3005';
-const SOCKET_URL = import.meta.env.SOCKET_URL || 'http://localhost:3005';
 
 interface SocketContextType {
     socket: Socket | null;
@@ -39,6 +38,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         // FIX: Connect to Root Domain, not /api/chat
         // Ingress exposes /socket.io at root
+        const SOCKET_URL = 'https://68.233.107.28.nip.io'
 
         const newSocket = io(SOCKET_URL, {
             auth: { token },
