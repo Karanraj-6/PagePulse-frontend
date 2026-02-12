@@ -70,6 +70,9 @@ const ChatPage = () => {
 
                 // Get conversation ID
                 const { conversationId: cid } = await chatApi.initiatePrivateChat(currentUser.id, target.id);
+                console.log("🟦 [ChatPage] Resolved Conversation ID:", cid);
+                console.log("🟦 [ChatPage] Me:", currentUser.username, "(", currentUser.id, ")");
+                console.log("🟦 [ChatPage] Target:", target.username, "(", target.id, ")");
                 setConversationId(cid);
 
                 // Load initial history
@@ -95,7 +98,10 @@ const ChatPage = () => {
 
                 // Join Socket Room
                 if (socket) {
+                    console.log("🟦 [ChatPage] Emitting join_private_chat for:", cid);
                     socket.emit('join_private_chat', cid);
+                } else {
+                    console.warn("🟧 [ChatPage] Socket not available during initChat");
                 }
 
             } catch (err) {
@@ -114,8 +120,12 @@ const ChatPage = () => {
         if (!socket || !conversationId) return;
 
         const handleReceive = (msg: Message) => {
+            console.log("🟦 [ChatPage] Received message:", msg);
             // Check if this message belongs to current chat
-            if (msg.conversation_id !== conversationId) return;
+            if (msg.conversation_id !== conversationId) {
+                console.log("🟧 [ChatPage] Ignored message for diff conversation:", msg.conversation_id);
+                return;
+            }
 
             setMessages(prev => {
                 // 1. Deduplicate by DB ID
@@ -193,6 +203,7 @@ const ChatPage = () => {
 
         setMessages(prev => [...prev, tempMsg]);
 
+        console.log("🟦 [ChatPage] Sending message:", content, "to ConvID:", conversationId);
         // Emit Socket Event
         socket.emit('send_private_message', {
             conversation_id: conversationId,
@@ -294,38 +305,38 @@ const ChatPage = () => {
 
             {/* --- BACKGROUND PATTERN (Absolute, Z-0) --- */}
             <div style={{
-                    position: 'absolute',
-                    top: '-20%',
-                    left: '-20%',
-                    width: '140%',
-                    height: '140%',
-                    zIndex: 0,
-                    pointerEvents: 'none',
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(3, 1fr)',
-                    gridTemplateRows: 'repeat(3, 1fr)',
-                    opacity: 0.3,
-                    transform: 'rotate(-15deg)',
-                    gap: '50px'
-                  }}>
-                    {Array.from({ length: 9 }).map((_, index) => (
-                      <div key={index} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                position: 'absolute',
+                top: '-20%',
+                left: '-20%',
+                width: '140%',
+                height: '140%',
+                zIndex: 0,
+                pointerEvents: 'none',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gridTemplateRows: 'repeat(3, 1fr)',
+                opacity: 0.3,
+                transform: 'rotate(-15deg)',
+                gap: '50px'
+            }}>
+                {Array.from({ length: 9 }).map((_, index) => (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         <TextPressure
-                          text="PagePulse"
-                          flex={true}
-                          alpha={false}
-                          stroke={false}
-                          width={true}
-                          weight={true}
-                          italic={true}
-                          textColor="transparent"
-                          strokeColor="#000000"
-                          minFontSize={120}
-                          className="text-6xl font-bold bg-gradient-to-r from-[#bb750d] via-[#d45b0a] to-[#c8d50e] bg-clip-text text-transparent animate-gradient-x"
+                            text="PagePulse"
+                            flex={true}
+                            alpha={false}
+                            stroke={false}
+                            width={true}
+                            weight={true}
+                            italic={true}
+                            textColor="transparent"
+                            strokeColor="#000000"
+                            minFontSize={120}
+                            className="text-6xl font-bold bg-gradient-to-r from-[#bb750d] via-[#d45b0a] to-[#c8d50e] bg-clip-text text-transparent animate-gradient-x"
                         />
-                      </div>
-                    ))}
-                  </div>
+                    </div>
+                ))}
+            </div>
 
             {/* 2. CHAT CONTAINER (Absolute Center, Z-10) */}
             <div style={{
