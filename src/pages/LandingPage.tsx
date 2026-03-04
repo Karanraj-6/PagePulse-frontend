@@ -90,13 +90,13 @@ const LandingPage = () => {
                             </div>
 
                             {/* Main Headline */}
-                            <h1 className="font-kindle text-3xl md:text-8xl mb-8 tracking-tight drop-shadow-2xl">
-                                Read. Connect. <span className="text-[#d4af37] italic">Inspire.</span>
+                            <h1 className="font-kindle text-2xl md:text-8xl mb-8 tracking-tight drop-shadow-2xl">
+                                Turn Pages. <span className="text-[#d4af37] italic">Find Yourself.</span>
                             </h1>
 
                             {/* Description Paragraph */}
-                            <p className="w-full max-w-3xl mx-auto text-center font-body text-xl md:text-2xl text-gray-200 mt-6 mb-16 leading-relaxed drop-shadow-md">
-                                The ecosystem where your library comes alive. Track your journey, spark real-time debates, and turn every chapter into a shared adventure.
+                            <p className="w-full max-w-3xl mx-auto text-center font-body text-xl md:text-2xl text-gray-200 mt-6 mb-16 leading-relaxed drop-shadow-md" style={{marginTop: '2rem'}}>
+                                From timeless classics to hidden gems, immerse yourself in books that linger long after the last page. Read, reflect, and belong.
                             </p>
 
                             {/* Button */}
@@ -119,7 +119,7 @@ const LandingPage = () => {
                                 "
                                 style={{
                                     marginTop: '1.5rem',
-                                    height: 'auto',
+                                    height: '3.5rem',
                                     padding: '10px 30px'
                                 }}
                             >
@@ -226,7 +226,7 @@ const LandingPage = () => {
                     </div>
                     {/* ================= FOOTER ================= */}
                     <footer className="w-full bg-gradient-to-b from-black via-[#0a0a0a] to-black border-t border-zinc-800/50 font-body flex flex-col items-center mt-auto relative overflow-hidden" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
-                        
+
                         {/* Subtle background decoration */}
                         <div className="absolute inset-0 opacity-5">
                             <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#d4af37] rounded-full blur-[120px]"></div>
@@ -234,7 +234,7 @@ const LandingPage = () => {
                         </div>
 
                         <div className="relative z-10 w-full max-w-[1200px]" style={{ paddingLeft: '24px', paddingRight: '24px' }}>
-                            
+
                             {/* Top section with branding */}
                             <div className="flex flex-col items-center" style={{ marginBottom: '1rem' }}>
                                 <h3 className="font-kindle text-5xl md:text-7xl bg-gradient-to-r from-[#bb750d] via-[#d4af37] to-[#c8d50e] bg-clip-text text-transparent" style={{ marginBottom: '16px' }}>
@@ -250,25 +250,25 @@ const LandingPage = () => {
 
                             {/* Bottom section - evenly spaced */}
                             <div className="flex justify-between items-center">
-                                
+
                                 {/* Left: GitHub Link */}
-                                <div className="flex-1 flex justify-start" style={{marginLeft:'10rem'}}>
-                                    <a 
-                                        href="https://github.com/Karanraj-6/PagePulse" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
+                                <div className="flex-1 flex justify-start" style={{ marginLeft: '10rem' }}>
+                                    <a
+                                        href="https://github.com/Karanraj-6/PagePulse"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="group flex items-center rounded-full bg-zinc-900 border border-zinc-800 hover:border-[#d4af37] hover:bg-zinc-800 transition-all duration-300"
                                         style={{ gap: '8px', paddingLeft: '24px', paddingRight: '24px', paddingTop: '10px', paddingBottom: '10px' }}
                                     >
                                         <svg className="w-5 h-5 text-gray-400 group-hover:text-[#d4af37] transition-colors" fill="currentColor" viewBox="0 0 24 24">
-                                            <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd"/>
+                                            <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
                                         </svg>
                                         <span className="text-sm text-gray-400 group-hover:text-white transition-colors">GitHub</span>
                                     </a>
                                 </div>
-                                
+
                                 {/* Center: Copyright */}
-                                <div className="flex-1 flex justify-center" style={{marginLeft:'-5rem'}}>
+                                <div className="flex-1 flex justify-center" style={{ marginLeft: '-5rem' }}>
                                     <p className="text-gray-500 text-sm text-center">
                                         &copy; {new Date().getFullYear()} PagePulse. All rights reserved.
                                     </p>
